@@ -1,10 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import numpy as np
+from pathlib import Path
 import re
 
 app = FastAPI(title="Eco-Smart Classifier API")
+STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 app.add_middleware(
     CORSMiddleware,
@@ -62,7 +66,7 @@ class DonneesNumeriques(BaseModel):
 class DonneesNLP(BaseModel):
     texte: str
 
-@app.get("/")
+@app.get("/health")
 def accueil():
     return {"message": "Eco-Smart Classifier API ✅"}
 
@@ -121,3 +125,27 @@ def predire_nlp(data: DonneesNLP):
     X = m["tfidf"].transform([texte_propre])
     pred = m["nlp"].predict(X)[0]
     return {"categorie": str(pred), "texte_nettoye": texte_propre}
+
+
+if STATIC_DIR.exists():
+    app.mount(
+        "/static",
+        StaticFiles(directory=STATIC_DIR / "static"),
+        name="static",
+    )
+
+    @app.get("/")
+    def frontend_index():
+        return FileResponse(STATIC_DIR / "index.html")
+
+    @app.get("/{full_path:path}")
+    def frontend_app(full_path: str):
+        requested = (STATIC_DIR / full_path).resolve()
+        static_root = STATIC_DIR.resolve()
+        if requested.is_file() and static_root in requested.parents:
+            return FileResponse(requested)
+        return FileResponse(STATIC_DIR / "index.html")
+else:
+    @app.get("/")
+    def api_root():
+        return {"message": "Eco-Smart Classifier API ✅"}

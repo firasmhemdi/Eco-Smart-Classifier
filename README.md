@@ -198,3 +198,16 @@ dvc push
 ```
 
 Note : les artefacts sont aussi suivis directement par Git pour faciliter GitHub Actions et le deploiement simple.
+
+## Deploiement
+
+Le Dockerfile principal construit une image fullstack :
+
+- React compile et servi par FastAPI ;
+- API FastAPI ;
+- modeles ML inclus ;
+- port compatible avec les plateformes cloud via la variable `PORT`.
+
+Le fichier `render.yaml` permet un deploiement Render gratuit avec Docker et health check `/health`.
+
+Guide detaille : `DEPLOYMENT.md`.

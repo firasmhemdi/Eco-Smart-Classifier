@@ -116,7 +116,7 @@ jobs:
       - name: Smoke test API
         if: steps.artifacts.outputs.available == 'true'
         run: |
-          curl --fail http://localhost:8000/
+          curl --fail http://localhost:8000/health
           curl --fail http://localhost:8000/data/stats
 
       - name: Smoke test frontend

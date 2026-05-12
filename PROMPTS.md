@@ -464,6 +464,38 @@ Point de vigilance :
 
 - dans un vrai projet professionnel, il serait preferable de garder dataset et modeles hors Git et d'utiliser un remote DVC partage.
 
+### Interaction 11 - Preparation du Dockerfile fullstack pour deploiement gratuit
+
+Date : 2026-05-12  
+Type : Deploiement / Docker  
+Niveau charte : Vert
+
+Prompt utilise :
+
+```text
+deploiement je veut gratuitement et svp deja docker donc normalement tous dans une chose non ?
+```
+
+Objectif :
+
+- permettre un deploiement gratuit avec un seul service ;
+- eviter d'avoir un backend et un frontend separes en production ;
+- construire une image Docker fullstack contenant React, FastAPI et les modeles.
+
+Action realisee avec l'aide de l'IA :
+
+- transformation du `Dockerfile` principal en build multi-stage ;
+- build React dans une etape Node ;
+- copie du build React dans l'image Python ;
+- FastAPI sert l'interface React depuis `static/` ;
+- ajout d'un endpoint `/health` pour Render/GitHub Actions ;
+- adaptation du frontend pour utiliser une API relative en deploiement fullstack ;
+- ajout de `DEPLOYMENT.md`.
+
+Decision finale :
+
+Le projet peut etre deploye comme une seule application Docker fullstack sur Render ou Hugging Face Spaces Docker.
+
 ## Choix techniques a justifier dans le rapport
 
 ### Nettoyage et imputation

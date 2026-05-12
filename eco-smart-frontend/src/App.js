@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
-const API = process.env.REACT_APP_API_URL || "http://localhost:8000";
+const API = process.env.REACT_APP_API_URL ?? "http://localhost:8000";
 
 const COLORS = {
   "Métal": "#64748b",
@@ -596,7 +596,7 @@ export default function App() {
   const [apiOk, setApiOk] = useState(false);
 
   useEffect(() => {
-    axios.get(`${API}/`).then(() => setApiOk(true)).catch(() => setApiOk(false));
+    axios.get(`${API}/health`).then(() => setApiOk(true)).catch(() => setApiOk(false));
   }, []);
 
   const tabs = [

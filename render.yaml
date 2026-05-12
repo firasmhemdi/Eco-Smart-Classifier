@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: eco-smart-classifier
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass

@@ -5,7 +5,7 @@ from conftest import EXPECTED_CATEGORIES
 
 @pytest.mark.api
 def test_home_endpoint_returns_message(client):
-    response = client.get("/")
+    response = client.get("/health")
 
     assert response.status_code == 200
     assert "message" in response.json()

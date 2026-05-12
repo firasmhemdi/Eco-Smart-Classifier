@@ -429,6 +429,41 @@ Decision finale :
 
 DVC est operationnel localement. La prochaine amelioration consiste a choisir et configurer un remote DVC partage pour que GitHub Actions puisse restaurer automatiquement dataset et modeles.
 
+### Interaction 10 - Ajout direct des artefacts dans Git
+
+Date : 2026-05-12  
+Type : Versionnement / simplification deploiement  
+Niveau charte : Decision projet
+
+Prompt utilise :
+
+```text
+directe dans git deja projet detude pas de personne
+```
+
+Objectif :
+
+- simplifier GitHub Actions et le deploiement ;
+- rendre le dataset et les modeles disponibles directement depuis le depot GitHub ;
+- eviter la configuration d'un remote DVC externe pour ce projet d'etude.
+
+Action realisee avec l'aide de l'IA :
+
+- modification de `.gitignore` pour autoriser `dataset_ProjetML_2026.csv` et `models/` ;
+- conservation de DVC pour documenter les artefacts et permettre `dvc repro` ;
+- mise a jour du README et du journal PROMPTS.
+
+Justification :
+
+- le dataset fait environ 2.6 MB ;
+- les modeles font environ 1.8 MB ;
+- ces tailles restent raisonnables pour un depot Git d'etude ;
+- cela permet a GitHub Actions et aux plateformes de deploiement de construire l'API sans remote DVC externe.
+
+Point de vigilance :
+
+- dans un vrai projet professionnel, il serait preferable de garder dataset et modeles hors Git et d'utiliser un remote DVC partage.
+
 ## Choix techniques a justifier dans le rapport
 
 ### Nettoyage et imputation

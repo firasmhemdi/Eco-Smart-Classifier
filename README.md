@@ -174,11 +174,11 @@ Il execute :
 - smoke tests API et frontend ;
 - upload du rapport `htmlcov`.
 
-Important : le workflow a besoin du dataset et des modeles pour passer. Si ces fichiers sont geres par DVC, il faudra ajouter `dvc pull` dans la CI apres la configuration DVC.
+Important : pour simplifier le deploiement de ce projet d'etude, le dataset et les modeles sont aussi presents directement dans le depot Git. DVC reste configure pour documenter et verifier les artefacts.
 
 ## DVC
 
-Le projet utilise DVC pour versionner les artefacts lourds sans les stocker directement dans Git :
+Le projet utilise DVC pour documenter et verifier les artefacts :
 
 - `dataset_ProjetML_2026.csv`
 - `models/`
@@ -197,4 +197,4 @@ Pousser les artefacts vers le remote DVC :
 dvc push
 ```
 
-Important : un remote local de test peut fonctionner sur la machine, mais GitHub Actions a besoin d'un remote partage comme Google Drive, S3, Azure, SSH ou un serveur distant. Une fois le remote partage configure, la CI executera `dvc pull` automatiquement.
+Note : les artefacts sont aussi suivis directement par Git pour faciliter GitHub Actions et le deploiement simple.

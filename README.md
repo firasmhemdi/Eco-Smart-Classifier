@@ -2,11 +2,7 @@
 
 **Système intelligent de classification de déchets et estimation du prix de revente.**
 
-
-
 **## 🎯 Description**
-
-
 
 **Pipeline ML complet allant de la donnée brute à une application web déployée,**
 

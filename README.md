@@ -70,7 +70,6 @@
 **\*\*2. Lancer l'application React\*\***
 
 
-
 &#x20;   **cd eco-smart-frontend**
 
 &#x20;   **npm install**

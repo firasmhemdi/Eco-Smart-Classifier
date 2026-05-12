@@ -1,7 +1,5 @@
 **# ♻️ Eco-Smart Classifier**
 
-
-
 **Système intelligent de classification de déchets et estimation du prix de revente.**
 
 

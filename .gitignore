@@ -25,3 +25,4 @@ eco-smart-frontend/build/
 .venv/
 venv/
 .env 
+/models

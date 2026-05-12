@@ -377,6 +377,58 @@ Decision finale :
 
 La CI/CD est prete pour un depot contenant les artefacts necessaires ou pour une integration DVC prochaine.
 
+### Interaction 9 - Configuration DVC
+
+Date : 2026-05-12  
+Type : DVC / reproductibilite  
+Niveau charte : Orange
+
+Prompt utilise :
+
+```text
+yalla mon amioe dvc
+```
+
+Objectif :
+
+- initialiser DVC dans le depot ;
+- versionner le dataset et les modeles avec DVC ;
+- creer un pipeline `dvc.yaml` reproductible ;
+- verifier `dvc repro` ;
+- preparer GitHub Actions pour utiliser `dvc pull` quand un remote partage sera configure.
+
+Action realisee avec l'aide de l'IA :
+
+- installation/verifications de DVC ;
+- initialisation de `.dvc/` ;
+- ajout de `dataset_ProjetML_2026.csv` avec `dvc add` ;
+- ajout du dossier `models/` avec `dvc add` ;
+- creation de `scripts/validate_dvc_artifacts.py` ;
+- creation d'une etape DVC `validate_artifacts` dans `dvc.yaml` ;
+- execution de `dvc repro` ;
+- generation de `reports/dvc_metrics.json` ;
+- configuration d'un remote DVC local de test dans `C:\tmp\eco-smart-dvc-remote` ;
+- execution de `dvc push` vers ce remote local ;
+- mise a jour de GitHub Actions pour installer DVC et lancer `dvc pull` si un remote partage existe.
+
+Verification realisee :
+
+- `dvc status` retourne : donnees et pipelines a jour ;
+- `dvc repro` fonctionne ;
+- `dvc metrics show` affiche les metriques ;
+- dataset valide : 10500 lignes, 9 colonnes, 514 categories manquantes ;
+- modeles valides : 8 fichiers, taille totale 1793525 octets ;
+- `dvc push` local : 9 fichiers pousses.
+
+Point de vigilance :
+
+- le remote local sert seulement au test sur cette machine ;
+- pour GitHub Actions et le travail collaboratif, il faut configurer un remote partage accessible depuis GitHub, par exemple Google Drive, S3, Azure, SSH ou autre stockage distant.
+
+Decision finale :
+
+DVC est operationnel localement. La prochaine amelioration consiste a choisir et configurer un remote DVC partage pour que GitHub Actions puisse restaurer automatiquement dataset et modeles.
+
 ## Choix techniques a justifier dans le rapport
 
 ### Nettoyage et imputation

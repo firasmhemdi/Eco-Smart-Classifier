@@ -1,0 +1,23 @@
+schema: '2.0'
+stages:
+  validate_artifacts:
+    cmd: python scripts/validate_dvc_artifacts.py
+    deps:
+    - path: dataset_ProjetML_2026.csv
+      hash: md5
+      md5: ebca3e2a097a475cee3af2c152e90164
+      size: 2586532
+    - path: models
+      hash: md5
+      md5: 7a8b42754f15c47736e05df564954f1e.dir
+      size: 1793525
+      nfiles: 8
+    - path: scripts/validate_dvc_artifacts.py
+      hash: md5
+      md5: ee7a8ae0c5eec216ea7affe41a1ac2d3
+      size: 2744
+    outs:
+    - path: reports/dvc_metrics.json
+      hash: md5
+      md5: 1f93e499619cada26746b076ed99ea58
+      size: 591

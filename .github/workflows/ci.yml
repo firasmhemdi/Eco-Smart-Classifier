@@ -27,7 +27,29 @@ jobs:
           test -f requirements-dev.txt
           test -f Dockerfile
           test -f docker-compose.yml
+          test -f dvc.yaml
+          test -f dataset_ProjetML_2026.csv.dvc
+          test -f models.dvc
           test -f eco-smart-frontend/package-lock.json
+
+      - name: Set up Python for DVC
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install DVC
+        run: pip install "dvc==3.67.1"
+
+      - name: Pull DVC artifacts when remote is configured
+        shell: bash
+        run: |
+          remotes="$(dvc remote list || true)"
+          if [[ -n "$remotes" ]]; then
+            echo "DVC remote found. Pulling artifacts..."
+            dvc pull
+          else
+            echo "No shared DVC remote configured yet. Skipping dvc pull."
+          fi
 
       - name: Detect ML artifacts
         id: artifacts

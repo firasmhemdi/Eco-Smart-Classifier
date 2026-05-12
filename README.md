@@ -175,3 +175,26 @@ Il execute :
 - upload du rapport `htmlcov`.
 
 Important : le workflow a besoin du dataset et des modeles pour passer. Si ces fichiers sont geres par DVC, il faudra ajouter `dvc pull` dans la CI apres la configuration DVC.
+
+## DVC
+
+Le projet utilise DVC pour versionner les artefacts lourds sans les stocker directement dans Git :
+
+- `dataset_ProjetML_2026.csv`
+- `models/`
+
+Verifier le pipeline :
+
+```bash
+dvc status
+dvc repro
+dvc metrics show
+```
+
+Pousser les artefacts vers le remote DVC :
+
+```bash
+dvc push
+```
+
+Important : un remote local de test peut fonctionner sur la machine, mais GitHub Actions a besoin d'un remote partage comme Google Drive, S3, Azure, SSH ou un serveur distant. Une fois le remote partage configure, la CI executera `dvc pull` automatiquement.

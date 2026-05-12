@@ -1,0 +1,10 @@
+stages:
+  validate_artifacts:
+    cmd: python scripts/validate_dvc_artifacts.py
+    deps:
+    - dataset_ProjetML_2026.csv
+    - models
+    - scripts/validate_dvc_artifacts.py
+    metrics:
+    - reports/dvc_metrics.json:
+        cache: false

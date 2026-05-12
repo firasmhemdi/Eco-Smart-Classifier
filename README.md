@@ -11,7 +11,6 @@
 **et d'estimer leur valeur de revente.**
 
 
-
 **## 📊 Résultats**
 
 

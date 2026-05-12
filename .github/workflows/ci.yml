@@ -1,0 +1,120 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+    branches:
+      - "**"
+  workflow_dispatch:
+
+jobs:
+  tests-and-docker:
+    name: Tests, Coverage, Docker Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check required source files
+        shell: bash
+        run: |
+          test -f main.py
+          test -f requirements.txt
+          test -f requirements-dev.txt
+          test -f Dockerfile
+          test -f docker-compose.yml
+          test -f eco-smart-frontend/package-lock.json
+
+      - name: Detect ML artifacts
+        id: artifacts
+        shell: bash
+        run: |
+          if [[ -f dataset_ProjetML_2026.csv \
+            && -d models \
+            && -f models/model_nlp.pkl \
+            && -f models/model_multi.pkl \
+            && -f models/tfidf_vectorizer.pkl \
+            && -f models/tfidf_multi.pkl \
+            && -f models/scaler_multi.pkl ]]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "ML artifacts found: full backend tests will run." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "ML artifacts are missing. Pre-DVC CI will run frontend/build checks only." >> "$GITHUB_STEP_SUMMARY"
+            echo "After DVC is configured, add dvc pull before this detection step." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Validate Docker Compose file
+        run: docker compose config
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: eco-smart-frontend/package-lock.json
+
+      - name: Build frontend with npm
+        working-directory: eco-smart-frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build frontend Docker image
+        run: docker build -t eco-smart-frontend ./eco-smart-frontend
+
+      - name: Build backend image
+        if: steps.artifacts.outputs.available == 'true'
+        run: docker build -t eco-smart-api .
+
+      - name: Run backend tests with coverage
+        if: steps.artifacts.outputs.available == 'true'
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/app" \
+            -w /app \
+            eco-smart-api \
+            sh -c "pip install --no-cache-dir -r requirements-dev.txt && pytest"
+
+      - name: Build frontend and backend with Docker Compose
+        if: steps.artifacts.outputs.available == 'true'
+        run: docker compose build
+
+      - name: Start stack
+        if: steps.artifacts.outputs.available == 'true'
+        run: docker compose up -d --wait
+
+      - name: Smoke test API
+        if: steps.artifacts.outputs.available == 'true'
+        run: |
+          curl --fail http://localhost:8000/
+          curl --fail http://localhost:8000/data/stats
+
+      - name: Smoke test frontend
+        if: steps.artifacts.outputs.available == 'true'
+        run: curl --fail http://localhost:3000/
+
+      - name: Show container status on failure
+        if: failure()
+        run: |
+          docker compose ps
+          docker compose logs --no-color
+
+      - name: Stop stack
+        if: always()
+        run: docker compose down
+
+      - name: Upload coverage HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: htmlcov
+          path: htmlcov
+          if-no-files-found: ignore

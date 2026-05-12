@@ -9,13 +9,19 @@ models/
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
+htmlcov/
+.coverage
+.pytest_cache/
 
 # MLflow
 mlruns/
+mlflow.db
 
 # Node
 eco-smart-frontend/node_modules/
 eco-smart-frontend/build/
 
 # Environnement
+.venv/
+venv/
 .env 

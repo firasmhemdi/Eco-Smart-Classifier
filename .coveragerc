@@ -1,0 +1,15 @@
+[run]
+source = .
+omit =
+    .venv/*
+    venv/*
+    tests/*
+    eco-smart-frontend/*
+    */site-packages/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:
+    raise NotImplementedError
+show_missing = True

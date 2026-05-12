@@ -91,3 +91,87 @@ cd eco-smart-frontend && npm install
 
 ## 👨‍💻 Auteur
 **Firas Mhemdi** — Mastère DSIR1, ISET Sfax
+## Docker - API FastAPI
+
+Construire l'image :
+
+```bash
+docker build -t eco-smart-api .
+```
+
+Lancer le conteneur :
+
+```bash
+docker run --rm -p 8000:8000 eco-smart-api
+```
+
+Verifier l'API :
+
+- API : http://localhost:8000
+- Documentation Swagger : http://localhost:8000/docs
+
+## Docker Compose - Backend + Frontend
+
+Construire les deux images :
+
+```bash
+docker compose build
+```
+
+Lancer toute l'application :
+
+```bash
+docker compose up -d
+```
+
+Arreter les conteneurs :
+
+```bash
+docker compose down
+```
+
+URLs :
+
+- Frontend React : http://localhost:3000
+- API FastAPI : http://localhost:8000
+- API Docs : http://localhost:8000/docs
+
+## Tests
+
+Installer les dependances de test :
+
+```bash
+pip install -r requirements-dev.txt
+```
+
+Lancer les tests avec coverage :
+
+```bash
+pytest
+```
+
+Le plan des tests a implementer est dans `TEST_PLAN.md`.
+
+Execution verifiee dans Docker :
+
+```bash
+docker run --rm -v "${PWD}:/app" -w /app eco-smart-api sh -c "pip install --no-cache-dir -r requirements-dev.txt && pytest"
+```
+
+Resultat actuel : 20 tests passes, coverage `main.py` 100%.
+
+## CI/CD GitHub Actions
+
+Le workflow CI est dans `.github/workflows/ci.yml`.
+
+Il execute :
+
+- verification des fichiers obligatoires ;
+- build de l'image backend `eco-smart-api` ;
+- tests `pytest` avec coverage ;
+- build backend + frontend avec Docker Compose ;
+- lancement du stack complet ;
+- smoke tests API et frontend ;
+- upload du rapport `htmlcov`.
+
+Important : le workflow a besoin du dataset et des modeles pour passer. Si ces fichiers sont geres par DVC, il faudra ajouter `dvc pull` dans la CI apres la configuration DVC.

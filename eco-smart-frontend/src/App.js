@@ -1,598 +1,1252 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import {
+  Bar,
+  BarChart,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 const API = process.env.REACT_APP_API_URL ?? "http://localhost:8000";
 
 const COLORS = {
+  Metal: "#64748b",
   "Métal": "#64748b",
-  "Papier": "#f59e0b",
-  "Plastique": "#3b82f6",
-  "Verre": "#10b981",
+  Papier: "#d97706",
+  Plastique: "#2563eb",
+  Verre: "#059669",
 };
 
-const ICONS = {
-  "Métal": "⚙️",
-  "Papier": "📄",
-  "Plastique": "🧴",
-  "Verre": "🫙",
+const CATEGORY_MARKS = {
+  Metal: "MT",
+  "Métal": "MT",
+  Papier: "PA",
+  Plastique: "PL",
+  Verre: "VE",
 };
+
+const INITIAL_VALUES = {
+  poids: 50,
+  volume: 100,
+  conductivite: 0.1,
+  opacite: 1,
+  rigidite: 5,
+};
+
+const SLIDERS = [
+  {
+    key: "poids",
+    label: "Poids",
+    unit: "kg",
+    min: 0,
+    max: 300,
+    step: 1,
+    hint: "Masse du lot collecte",
+  },
+  {
+    key: "volume",
+    label: "Volume",
+    unit: "L",
+    min: 0,
+    max: 530,
+    step: 1,
+    hint: "Espace occupe par le dechet",
+  },
+  {
+    key: "conductivite",
+    label: "Conductivite",
+    unit: "",
+    min: -0.31,
+    max: 0.52,
+    step: 0.01,
+    hint: "Indice de reponse electrique",
+  },
+  {
+    key: "opacite",
+    label: "Opacite",
+    unit: "",
+    min: -0.91,
+    max: 2.15,
+    step: 0.01,
+    hint: "Transparence du materiau",
+  },
+  {
+    key: "rigidite",
+    label: "Rigidite",
+    unit: "",
+    min: 1.5,
+    max: 11,
+    step: 0.1,
+    hint: "Resistance mecanique",
+  },
+];
+
+const NLP_EXAMPLES = [
+  "Materiau metallique tres rigide et lourd, conducteur electrique, aspect brillant.",
+  "Feuilles de papier et cartons souples, tres legers, aspect opaque, non conducteur.",
+  "Conteneur plastique semi-rigide, leger, faible conductivite, usage alimentaire.",
+  "Bris de verre transparents, rigides, conductivite moderee, provenance menagere.",
+];
+
+const TAB_HASHES = ["dashboard", "prediction", "nlp"];
 
 const styles = `
-  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+  * { box-sizing: border-box; }
 
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #f5f7f4;
+    --surface: #ffffff;
+    --surface-soft: #eef3ee;
+    --ink: #17211b;
+    --muted: #647067;
+    --line: #dce5dc;
+    --line-strong: #c7d5ca;
+    --green: #167a4a;
+    --green-strong: #0f6a3f;
+    --blue: #245f9d;
+    --amber: #b86d12;
+    --danger: #b42318;
+    --shadow: 0 18px 45px rgba(35, 54, 42, 0.08);
+  }
 
   body {
-    font-family: 'Space Grotesk', sans-serif;
-    background: #0a0f1e;
-    color: #e2e8f0;
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
+  }
+
+  button,
+  input,
+  textarea {
+    font: inherit;
+  }
+
+  button {
+    border: 0;
+  }
+
+  .app {
     min-height: 100vh;
   }
 
-  .app { min-height: 100vh; }
-
-  /* Header */
-  .header {
-    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-    border-bottom: 1px solid #1e3a5f;
-    padding: 20px 40px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+  .topbar {
+    border-bottom: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(14px);
     position: sticky;
     top: 0;
-    z-index: 100;
-    backdrop-filter: blur(10px);
+    z-index: 10;
   }
 
-  .logo {
-    display: flex;
+  .topbar-inner {
     align-items: center;
+    display: flex;
+    gap: 20px;
+    justify-content: space-between;
+    margin: 0 auto;
+    max-width: 1180px;
+    padding: 16px 24px;
+  }
+
+  .brand {
+    align-items: center;
+    display: flex;
     gap: 12px;
+    min-width: 0;
   }
 
-  .logo-icon {
-    width: 40px;
+  .brand-mark {
+    align-items: center;
+    background: #153824;
+    border-radius: 8px;
+    color: #d8ffe7;
+    display: inline-flex;
+    font-weight: 800;
     height: 40px;
-    background: linear-gradient(135deg, #10b981, #3b82f6);
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
     justify-content: center;
-    font-size: 20px;
+    letter-spacing: 0;
+    width: 40px;
   }
 
-  .logo-text h1 {
-    font-size: 18px;
-    font-weight: 700;
-    color: #f1f5f9;
-    letter-spacing: -0.5px;
+  .brand h1 {
+    font-size: 17px;
+    line-height: 1.2;
+    margin: 0;
   }
 
-  .logo-text p {
+  .brand p {
+    color: var(--muted);
     font-size: 12px;
-    color: #64748b;
-    font-family: 'JetBrains Mono', monospace;
+    margin: 2px 0 0;
   }
 
-  .api-status {
-    display: flex;
+  .status-pill {
     align-items: center;
-    gap: 8px;
-    background: #0f2a1a;
-    border: 1px solid #10b981;
-    border-radius: 20px;
-    padding: 6px 14px;
+    background: #f7faf7;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--muted);
+    display: inline-flex;
+    flex-shrink: 0;
     font-size: 13px;
-    color: #10b981;
-    font-family: 'JetBrains Mono', monospace;
+    gap: 8px;
+    padding: 8px 12px;
   }
 
   .status-dot {
-    width: 8px;
+    border-radius: 999px;
     height: 8px;
-    background: #10b981;
-    border-radius: 50%;
-    animation: pulse 2s infinite;
+    width: 8px;
   }
 
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
+  .tabs-wrap {
+    border-bottom: 1px solid var(--line);
+    background: #fbfcfb;
   }
 
-  /* Tabs */
   .tabs {
     display: flex;
-    background: #0f172a;
-    border-bottom: 1px solid #1e293b;
-    padding: 0 40px;
-    gap: 4px;
+    gap: 6px;
+    margin: 0 auto;
+    max-width: 1180px;
+    overflow-x: auto;
+    padding: 10px 24px;
   }
 
   .tab {
-    padding: 16px 24px;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 500;
-    color: #64748b;
-    border-bottom: 2px solid transparent;
-    transition: all 0.2s;
-    display: flex;
     align-items: center;
-    gap: 8px;
-    background: none;
-    border-top: none;
-    border-left: none;
-    border-right: none;
+    background: transparent;
+    border-radius: 8px;
+    color: var(--muted);
+    cursor: pointer;
+    display: inline-flex;
+    flex-shrink: 0;
+    font-size: 14px;
+    font-weight: 650;
+    gap: 9px;
+    padding: 10px 14px;
   }
 
-  .tab:hover { color: #94a3b8; }
+  .tab:hover {
+    background: var(--surface-soft);
+    color: var(--ink);
+  }
 
   .tab.active {
-    color: #10b981;
-    border-bottom-color: #10b981;
+    background: #153824;
+    color: #ffffff;
   }
 
-  /* Content */
-  .content { padding: 40px; max-width: 1200px; margin: 0 auto; }
-
-  /* Cards */
-  .card {
-    background: #0f172a;
-    border: 1px solid #1e293b;
-    border-radius: 16px;
-    padding: 28px;
-    margin-bottom: 24px;
-  }
-
-  .card-title {
-    font-size: 16px;
-    font-weight: 600;
-    color: #f1f5f9;
-    margin-bottom: 20px;
-    display: flex;
+  .tab-icon {
     align-items: center;
-    gap: 10px;
+    border: 1px solid currentColor;
+    border-radius: 6px;
+    display: inline-flex;
+    font-size: 10px;
+    font-weight: 800;
+    height: 22px;
+    justify-content: center;
+    width: 24px;
   }
 
-  /* Stats Grid */
-  .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 16px;
+  .content {
+    margin: 0 auto;
+    max-width: 1180px;
+    padding: 28px 24px 48px;
+  }
+
+  .page-intro {
+    align-items: flex-start;
+    display: flex;
+    gap: 20px;
+    justify-content: space-between;
     margin-bottom: 24px;
   }
 
-  .stat-card {
-    background: linear-gradient(135deg, #0f172a, #1e293b);
-    border: 1px solid #1e3a5f;
-    border-radius: 12px;
-    padding: 20px;
-    text-align: center;
-    transition: transform 0.2s;
-  }
-
-  .stat-card:hover { transform: translateY(-2px); }
-
-  .stat-value {
-    font-size: 32px;
-    font-weight: 700;
-    color: #10b981;
-    font-family: 'JetBrains Mono', monospace;
-  }
-
-  .stat-label {
+  .eyebrow {
+    color: var(--green);
     font-size: 12px;
-    color: #64748b;
-    margin-top: 4px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    margin: 0 0 8px;
     text-transform: uppercase;
-    letter-spacing: 1px;
   }
 
-  /* Charts Grid */
+  .page-title {
+    font-size: 30px;
+    letter-spacing: 0;
+    line-height: 1.1;
+    margin: 0;
+  }
+
+  .page-copy {
+    color: var(--muted);
+    font-size: 15px;
+    line-height: 1.6;
+    margin: 10px 0 0;
+    max-width: 650px;
+  }
+
+  .mini-action {
+    align-items: center;
+    background: #ffffff;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--ink);
+    display: inline-flex;
+    font-size: 13px;
+    font-weight: 700;
+    gap: 8px;
+    padding: 10px 12px;
+    white-space: nowrap;
+  }
+
+  .metric-grid {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin-bottom: 20px;
+  }
+
+  .metric-card,
+  .chart-panel,
+  .control-panel,
+  .result-panel,
+  .text-panel,
+  .nlp-result,
+  .model-strip {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+  }
+
+  .metric-card {
+    padding: 18px;
+  }
+
+  .metric-label {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+  }
+
+  .metric-value {
+    color: var(--ink);
+    font-size: 28px;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .metric-note {
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 10px;
+  }
+
   .charts-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 24px;
-  }
-
-  /* Sliders */
-  .slider-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
     gap: 20px;
-    margin-bottom: 24px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 
-  .slider-item label {
+  .chart-panel {
+    min-height: 335px;
+    padding: 22px;
+  }
+
+  .panel-heading {
+    align-items: center;
     display: flex;
     justify-content: space-between;
-    font-size: 13px;
-    color: #94a3b8;
-    margin-bottom: 8px;
+    margin-bottom: 16px;
   }
 
-  .slider-item label span {
-    color: #10b981;
-    font-family: 'JetBrains Mono', monospace;
-    font-weight: 600;
+  .panel-heading h2 {
+    font-size: 16px;
+    margin: 0;
+  }
+
+  .panel-heading span {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .model-strip {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-top: 20px;
+    padding: 16px;
+  }
+
+  .model-item {
+    border-left: 3px solid var(--green);
+    padding: 4px 0 4px 12px;
+  }
+
+  .model-item strong {
+    display: block;
+    font-size: 18px;
+  }
+
+  .model-item span {
+    color: var(--muted);
+    display: block;
+    font-size: 12px;
+    margin-top: 3px;
+  }
+
+  .prediction-grid {
+    align-items: start;
+    display: grid;
+    gap: 20px;
+    grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+  }
+
+  .control-panel,
+  .result-panel,
+  .text-panel,
+  .nlp-result {
+    padding: 22px;
+  }
+
+  .field-grid {
+    display: grid;
+    gap: 14px;
+  }
+
+  .slider-item {
+    background: #fbfcfb;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 14px;
+  }
+
+  .slider-top {
+    align-items: flex-start;
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .slider-label {
+    color: var(--ink);
+    display: block;
+    font-size: 14px;
+    font-weight: 750;
+  }
+
+  .slider-hint {
+    color: var(--muted);
+    display: block;
+    font-size: 12px;
+    margin-top: 3px;
+  }
+
+  .number-input {
+    background: #ffffff;
+    border: 1px solid var(--line-strong);
+    border-radius: 7px;
+    color: var(--ink);
+    font-weight: 700;
+    max-width: 110px;
+    min-width: 88px;
+    padding: 8px 10px;
+    text-align: right;
+  }
+
+  .number-input:focus,
+  .nlp-textarea:focus {
+    border-color: var(--green);
+    box-shadow: 0 0 0 3px rgba(22, 122, 74, 0.14);
+    outline: none;
   }
 
   input[type="range"] {
+    accent-color: var(--green);
     width: 100%;
-    height: 4px;
-    border-radius: 4px;
-    background: #1e293b;
-    outline: none;
-    -webkit-appearance: none;
   }
 
-  input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 16px;
-    height: 16px;
-    background: #10b981;
-    border-radius: 50%;
-    cursor: pointer;
-  }
-
-  /* Predict Button */
-  .btn-predict {
-    background: linear-gradient(135deg, #10b981, #3b82f6);
-    color: white;
-    border: none;
-    padding: 14px 32px;
-    border-radius: 10px;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    width: 100%;
-    transition: opacity 0.2s, transform 0.1s;
-    font-family: 'Space Grotesk', sans-serif;
-  }
-
-  .btn-predict:hover { opacity: 0.9; transform: translateY(-1px); }
-  .btn-predict:active { transform: translateY(0); }
-  .btn-predict:disabled { opacity: 0.5; cursor: not-allowed; }
-
-  /* Result Box */
-  .result-box {
-    background: linear-gradient(135deg, #0a2a1a, #0a1628);
-    border: 1px solid #10b981;
-    border-radius: 12px;
-    padding: 24px;
-    margin-top: 20px;
-    text-align: center;
-    animation: fadeIn 0.3s ease;
-  }
-
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  .result-icon { font-size: 48px; margin-bottom: 12px; }
-
-  .result-category {
-    font-size: 28px;
-    font-weight: 700;
-    color: #10b981;
-    margin-bottom: 8px;
-  }
-
-  .result-price {
-    font-size: 20px;
-    color: #f59e0b;
-    font-family: 'JetBrains Mono', monospace;
-    font-weight: 600;
-  }
-
-  /* NLP Textarea */
-  .nlp-textarea {
-    width: 100%;
-    background: #1e293b;
-    border: 1px solid #334155;
-    border-radius: 10px;
-    padding: 16px;
-    color: #e2e8f0;
-    font-size: 14px;
-    font-family: 'Space Grotesk', sans-serif;
-    resize: vertical;
-    min-height: 120px;
-    margin-bottom: 16px;
-    outline: none;
-    transition: border-color 0.2s;
-  }
-
-  .nlp-textarea:focus { border-color: #10b981; }
-
-  /* Performance badges */
-  .perf-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-    margin-top: 16px;
-  }
-
-  .perf-badge {
-    background: #0f2a1a;
-    border: 1px solid #10b981;
-    border-radius: 8px;
-    padding: 12px;
-    text-align: center;
-  }
-
-  .perf-value {
-    font-size: 22px;
-    font-weight: 700;
-    color: #10b981;
-    font-family: 'JetBrains Mono', monospace;
-  }
-
-  .perf-label {
+  .range-meta {
+    color: var(--muted);
+    display: flex;
     font-size: 11px;
-    color: #64748b;
+    justify-content: space-between;
     margin-top: 4px;
+  }
+
+  .realtime-bar {
+    align-items: center;
+    background: #eef7f1;
+    border: 1px solid #cfe7d6;
+    border-radius: 8px;
+    color: #215d3b;
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+    margin-top: 14px;
+    padding: 12px 14px;
+  }
+
+  .realtime-bar.error {
+    background: #fff1f0;
+    border-color: #ffd0cc;
+    color: var(--danger);
+  }
+
+  .status-text {
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .refresh-button,
+  .primary-button,
+  .example-button {
+    align-items: center;
+    border-radius: 8px;
+    cursor: pointer;
+    display: inline-flex;
+    font-weight: 750;
+    justify-content: center;
+  }
+
+  .refresh-button {
+    background: #ffffff;
+    border: 1px solid #bfd8c8;
+    color: var(--green-strong);
+    font-size: 13px;
+    padding: 8px 10px;
+  }
+
+  .primary-button {
+    background: #153824;
+    color: white;
+    font-size: 14px;
+    margin-top: 16px;
+    padding: 13px 16px;
+    width: 100%;
+  }
+
+  .primary-button:hover,
+  .refresh-button:hover,
+  .example-button:hover {
+    filter: brightness(0.98);
+  }
+
+  .primary-button:disabled,
+  .refresh-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  .result-panel {
+    overflow: hidden;
+    position: sticky;
+    top: 128px;
+  }
+
+  .result-main {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 20px;
+  }
+
+  .category-mark {
+    align-items: center;
+    background: #153824;
+    border-radius: 8px;
+    color: #ffffff;
+    display: inline-flex;
+    font-size: 15px;
+    font-weight: 850;
+    height: 48px;
+    justify-content: center;
+    margin-bottom: 16px;
+    width: 52px;
+  }
+
+  .result-label {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    margin: 0 0 8px;
     text-transform: uppercase;
   }
 
-  /* Loading */
-  .loading {
-    display: inline-block;
-    width: 16px;
-    height: 16px;
-    border: 2px solid rgba(255,255,255,0.3);
-    border-top-color: white;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    margin-right: 8px;
+  .result-category {
+    color: var(--ink);
+    font-size: 34px;
+    font-weight: 850;
+    line-height: 1.1;
+    margin: 0 0 8px;
   }
 
-  @keyframes spin { to { transform: rotate(360deg); } }
+  .result-copy {
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 0;
+  }
 
-  /* Category chips */
-  .category-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 14px;
-    border-radius: 20px;
+  .price-block {
+    align-items: end;
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    padding: 20px 0;
+  }
+
+  .price-value {
+    color: var(--amber);
+    font-size: 42px;
+    font-weight: 900;
+    line-height: 1;
+  }
+
+  .price-unit {
+    color: var(--muted);
     font-size: 13px;
-    font-weight: 600;
-    margin: 4px;
+    margin-top: 6px;
+  }
+
+  .signal-grid {
+    border-top: 1px solid var(--line);
+    display: grid;
+    gap: 10px;
+    grid-template-columns: 1fr 1fr;
+    padding-top: 18px;
+  }
+
+  .signal {
+    background: #f8faf8;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px;
+  }
+
+  .signal span {
+    color: var(--muted);
+    display: block;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .signal strong {
+    display: block;
+    font-size: 17px;
+    margin-top: 5px;
+  }
+
+  .empty-state {
+    align-items: center;
+    color: var(--muted);
+    display: flex;
+    min-height: 300px;
+    text-align: left;
+  }
+
+  .empty-state strong {
+    color: var(--ink);
+    display: block;
+    font-size: 20px;
+    margin-bottom: 8px;
+  }
+
+  .spinner {
+    animation: spin 0.8s linear infinite;
+    border: 2px solid rgba(22, 122, 74, 0.18);
+    border-radius: 999px;
+    border-top-color: var(--green);
+    display: inline-block;
+    height: 16px;
+    width: 16px;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .nlp-layout {
+    display: grid;
+    gap: 20px;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 0.65fr);
+  }
+
+  .nlp-textarea {
+    background: #fbfcfb;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    color: var(--ink);
+    min-height: 180px;
+    padding: 14px;
+    resize: vertical;
+    width: 100%;
+  }
+
+  .examples {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .example-button {
+    background: #f7faf7;
+    border: 1px solid var(--line);
+    color: var(--ink);
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+
+  .clean-text {
+    background: #f8faf8;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.55;
+    margin-top: 14px;
+    padding: 12px;
+    word-break: break-word;
+  }
+
+  .tooltip {
+    background: #ffffff;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+    color: var(--ink);
+    padding: 10px 12px;
+  }
+
+  @media (max-width: 900px) {
+    .topbar-inner,
+    .page-intro,
+    .prediction-grid,
+    .nlp-layout {
+      display: block;
+    }
+
+    .status-pill,
+    .mini-action {
+      margin-top: 14px;
+    }
+
+    .metric-grid,
+    .charts-grid,
+    .model-strip {
+      grid-template-columns: 1fr;
+    }
+
+    .result-panel {
+      margin-top: 20px;
+      position: static;
+    }
+
+    .nlp-result {
+      margin-top: 20px;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .topbar-inner,
+    .tabs,
+    .content {
+      padding-left: 16px;
+      padding-right: 16px;
+    }
+
+    .brand h1 {
+      font-size: 15px;
+    }
+
+    .page-title {
+      font-size: 24px;
+    }
+
+    .metric-value,
+    .result-category {
+      font-size: 26px;
+    }
+
+    .price-value {
+      font-size: 34px;
+    }
+
+    .slider-top,
+    .price-block {
+      align-items: stretch;
+      display: block;
+    }
+
+    .number-input {
+      margin-top: 10px;
+      max-width: none;
+      width: 100%;
+    }
+
+    .signal-grid {
+      grid-template-columns: 1fr;
+    }
   }
 `;
 
-// ── Dashboard Tab ──────────────────────────────────────────
+function formatNumber(value) {
+  return new Intl.NumberFormat("fr-FR").format(value);
+}
+
+function formatEuro(value) {
+  if (value === null || value === undefined) return "-";
+  return new Intl.NumberFormat("fr-FR", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+  }).format(Number(value));
+}
+
+function formatMetric(value, suffix = "") {
+  if (value === null || value === undefined) return "-";
+  const formatted = Number.isInteger(Number(value))
+    ? formatNumber(Number(value))
+    : Number(value).toLocaleString("fr-FR", { maximumFractionDigits: 2 });
+  return `${formatted}${suffix}`;
+}
+
+function PageIntro({ eyebrow, title, copy, action }) {
+  return (
+    <div className="page-intro">
+      <div>
+        <p className="eyebrow">{eyebrow}</p>
+        <h2 className="page-title">{title}</h2>
+        <p className="page-copy">{copy}</p>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function MetricCard({ label, value, note }) {
+  return (
+    <div className="metric-card">
+      <div className="metric-label">{label}</div>
+      <div className="metric-value">{value}</div>
+      <div className="metric-note">{note}</div>
+    </div>
+  );
+}
+
+function CustomTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="tooltip">
+      <strong>{label || payload[0].name}</strong>
+      <div>{formatMetric(payload[0].value)}</div>
+    </div>
+  );
+}
+
 function Dashboard() {
   const [stats, setStats] = useState(null);
 
   useEffect(() => {
-    axios.get(`${API}/data/stats`).then(r => setStats(r.data));
+    axios.get(`${API}/data/stats`).then((response) => setStats(response.data));
   }, []);
 
-  if (!stats) return <div style={{ color: "#64748b", padding: 40 }}>Chargement...</div>;
+  const pieData = useMemo(() => {
+    if (!stats) return [];
+    return Object.entries(stats.categories).map(([name, value]) => ({ name, value }));
+  }, [stats]);
 
-  const pieData = Object.entries(stats.categories).map(([name, value]) => ({ name, value }));
-  const barData = [
-    { name: "Classification", accuracy: stats.accuracy_classification },
-    { name: "NLP", accuracy: stats.accuracy_nlp },
-    { name: "Multimodal", accuracy: stats.accuracy_multimodal },
-    { name: "Régression R²", accuracy: stats.r2_regression * 100 },
-  ];
+  const barData = useMemo(() => {
+    if (!stats) return [];
+    return [
+      { name: "Classification", score: stats.accuracy_classification },
+      { name: "NLP", score: stats.accuracy_nlp },
+      { name: "Multimodal", score: stats.accuracy_multimodal },
+      { name: "Regression R2", score: stats.r2_regression * 100 },
+    ];
+  }, [stats]);
+
+  if (!stats) {
+    return (
+      <div className="empty-state">
+        <div>
+          <strong>Chargement du tableau de bord</strong>
+          Recuperation des statistiques depuis l'API.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-value">{stats.total_lignes.toLocaleString()}</div>
-          <div className="stat-label">Total Déchets</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">{stats.total_labellise.toLocaleString()}</div>
-          <div className="stat-label">Labellisés</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">4</div>
-          <div className="stat-label">Catégories</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">{stats.accuracy_classification}%</div>
-          <div className="stat-label">Accuracy Max</div>
-        </div>
+      <PageIntro
+        eyebrow="Vue d'ensemble"
+        title="Pilotage du classificateur eco-smart"
+        copy="Suivez les volumes, la repartition des categories et les performances des modeles avant d'utiliser la prediction."
+        action={<div className="mini-action">API active: /data/stats</div>}
+      />
+
+      <div className="metric-grid">
+        <MetricCard label="Total dechets" value={formatNumber(stats.total_lignes)} note="Lignes dans le dataset" />
+        <MetricCard label="Labellises" value={formatNumber(stats.total_labellise)} note="Donnees supervisees" />
+        <MetricCard label="Categories" value="4" note="Metal, papier, plastique, verre" />
+        <MetricCard label="Accuracy max" value={`${stats.accuracy_classification}%`} note="Modele classification" />
       </div>
 
       <div className="charts-grid">
-        <div className="card">
-          <div className="card-title">📊 Distribution des Catégories</div>
+        <div className="chart-panel">
+          <div className="panel-heading">
+            <h2>Distribution des categories</h2>
+            <span>{formatNumber(stats.total_labellise)} observations</span>
+          </div>
           <ResponsiveContainer width="100%" height={250}>
             <PieChart>
-              <Pie data={pieData} cx="50%" cy="50%" outerRadius={90} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+              <Pie
+                data={pieData}
+                cx="50%"
+                cy="50%"
+                dataKey="value"
+                innerRadius={58}
+                outerRadius={92}
+                isAnimationActive={false}
+                paddingAngle={3}
+              >
                 {pieData.map((entry) => (
-                  <Cell key={entry.name} fill={COLORS[entry.name] || "#6366f1"} />
+                  <Cell key={entry.name} fill={COLORS[entry.name] || "#167a4a"} />
                 ))}
               </Pie>
-              <Tooltip formatter={(v) => v.toLocaleString()} />
+              <Tooltip content={<CustomTooltip />} />
             </PieChart>
           </ResponsiveContainer>
         </div>
 
-        <div className="card">
-          <div className="card-title">🎯 Performance des Modèles</div>
+        <div className="chart-panel">
+          <div className="panel-heading">
+            <h2>Performance des modeles</h2>
+            <span>Scores principaux</span>
+          </div>
           <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={barData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-              <XAxis dataKey="name" tick={{ fill: "#64748b", fontSize: 11 }} />
-              <YAxis domain={[0, 105]} tick={{ fill: "#64748b", fontSize: 11 }} />
-              <Tooltip formatter={(v) => `${v.toFixed(1)}%`} />
-              <Bar dataKey="accuracy" fill="#10b981" radius={[6, 6, 0, 0]} />
+            <BarChart data={barData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+              <XAxis dataKey="name" tick={{ fill: "#647067", fontSize: 11 }} />
+              <YAxis domain={[0, 105]} tick={{ fill: "#647067", fontSize: 11 }} />
+              <Tooltip content={<CustomTooltip />} />
+              <Bar
+                dataKey="score"
+                fill="#167a4a"
+                radius={[7, 7, 0, 0]}
+                barSize={42}
+                isAnimationActive={false}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      <div className="card">
-        <div className="card-title">🏆 Résumé des Performances</div>
-        <div className="perf-grid">
-          <div className="perf-badge">
-            <div className="perf-value">{stats.accuracy_classification}%</div>
-            <div className="perf-label">Classification</div>
-          </div>
-          <div className="perf-badge">
-            <div className="perf-value">{stats.accuracy_nlp}%</div>
-            <div className="perf-label">NLP</div>
-          </div>
-          <div className="perf-badge">
-            <div className="perf-value">{stats.r2_regression}</div>
-            <div className="perf-label">R² Régression</div>
-          </div>
+      <div className="model-strip">
+        <div className="model-item">
+          <strong>{stats.accuracy_classification}%</strong>
+          <span>Classification numerique</span>
+        </div>
+        <div className="model-item">
+          <strong>{stats.accuracy_nlp}%</strong>
+          <span>Analyse NLP</span>
+        </div>
+        <div className="model-item">
+          <strong>{stats.r2_regression}</strong>
+          <span>R2 regression prix</span>
         </div>
       </div>
     </div>
   );
 }
 
-// ── Prediction Tab ─────────────────────────────────────────
+function SliderControl({ config, value, onChange }) {
+  const clampValue = (nextValue) => {
+    const parsed = Number(nextValue);
+    if (Number.isNaN(parsed)) return config.min;
+    return Math.min(config.max, Math.max(config.min, parsed));
+  };
+
+  return (
+    <div className="slider-item">
+      <div className="slider-top">
+        <div>
+          <label className="slider-label" htmlFor={config.key}>
+            {config.label}
+          </label>
+          <span className="slider-hint">{config.hint}</span>
+        </div>
+        <input
+          className="number-input"
+          id={`${config.key}-number`}
+          type="number"
+          min={config.min}
+          max={config.max}
+          step={config.step}
+          value={value}
+          onChange={(event) => onChange(config.key, clampValue(event.target.value))}
+        />
+      </div>
+      <input
+        id={config.key}
+        type="range"
+        min={config.min}
+        max={config.max}
+        step={config.step}
+        value={value}
+        onChange={(event) => onChange(config.key, clampValue(event.target.value))}
+      />
+      <div className="range-meta">
+        <span>{config.min}</span>
+        <span>
+          {formatMetric(value)}
+          {config.unit ? ` ${config.unit}` : ""}
+        </span>
+        <span>{config.max}</span>
+      </div>
+    </div>
+  );
+}
+
 function Prediction() {
-  const [values, setValues] = useState({ poids: 50, volume: 100, conductivite: 0.1, opacite: 1.0, rigidite: 5 });
+  const [values, setValues] = useState(INITIAL_VALUES);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const sliders = [
-    { key: "poids", label: "Poids (kg)", min: 0, max: 300, step: 1 },
-    { key: "volume", label: "Volume (L)", min: 0, max: 530, step: 1 },
-    { key: "conductivite", label: "Conductivité", min: -0.31, max: 0.52, step: 0.01 },
-    { key: "opacite", label: "Opacité", min: -0.91, max: 2.15, step: 0.01 },
-    { key: "rigidite", label: "Rigidité", min: 1.5, max: 11, step: 0.1 },
-  ];
-
-  const predire = async () => {
+  const runPrediction = async (payload = values) => {
     setLoading(true);
+    setError("");
     try {
-      const [clf, reg] = await Promise.all([
-        axios.post(`${API}/predict/classification`, values),
-        axios.post(`${API}/predict/regression`, values),
+      const [classification, regression] = await Promise.all([
+        axios.post(`${API}/predict/classification`, payload),
+        axios.post(`${API}/predict/regression`, payload),
       ]);
-      setResult({ categorie: clf.data.categorie, prix: reg.data.prix_estime });
-    } catch (e) {
-      alert("Erreur API !");
+      setResult({
+        categorie: classification.data.categorie,
+        prix: regression.data.prix_estime,
+      });
+    } catch (err) {
+      setError("Prediction indisponible. Verifiez que l'API est demarree.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
+  };
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      runPrediction(values);
+    }, 360);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [values]);
+
+  const updateValue = (key, nextValue) => {
+    setValues((current) => ({ ...current, [key]: nextValue }));
   };
 
   return (
     <div>
-      <div className="card">
-        <div className="card-title">🎛️ Ajuster les caractéristiques</div>
-        <div className="slider-grid">
-          {sliders.map(s => (
-            <div className="slider-item" key={s.key}>
-              <label>
-                {s.label}
-                <span>{values[s.key]}</span>
-              </label>
-              <input
-                type="range"
-                min={s.min}
-                max={s.max}
-                step={s.step}
-                value={values[s.key]}
-                onChange={e => setValues({ ...values, [s.key]: parseFloat(e.target.value) })}
-              />
-            </div>
-          ))}
-        </div>
-        <button className="btn-predict" onClick={predire} disabled={loading}>
-          {loading ? <><span className="loading"></span>Prédiction...</> : "🔍 Prédire la Catégorie & le Prix"}
-        </button>
-      </div>
+      <PageIntro
+        eyebrow="Prediction temps reel"
+        title="Estimer la categorie et le prix sans clic inutile"
+        copy="Ajustez les proprietes physiques du lot. Le modele recalcule automatiquement la categorie probable et le prix estime."
+        action={<div className="mini-action">Mise a jour auto: 360 ms</div>}
+      />
 
-      {result && (
-        <div className="result-box">
-          <div className="result-icon">{ICONS[result.categorie] || "♻️"}</div>
-          <div className="result-category">{result.categorie}</div>
-          <div className="result-price">Prix estimé : {result.prix} €</div>
+      <div className="prediction-grid">
+        <div className="control-panel">
+          <div className="panel-heading">
+            <h2>Caracteristiques du lot</h2>
+            <span>Entrees numeriques</span>
+          </div>
+          <div className="field-grid">
+            {SLIDERS.map((slider) => (
+              <SliderControl
+                key={slider.key}
+                config={slider}
+                value={values[slider.key]}
+                onChange={updateValue}
+              />
+            ))}
+          </div>
+
+          <div className={`realtime-bar ${error ? "error" : ""}`}>
+            <span className="status-text">
+              {error || (loading ? "Calcul en cours..." : "Prediction synchronisee")}
+            </span>
+            {loading ? (
+              <span className="spinner" aria-label="Chargement" />
+            ) : (
+              <button className="refresh-button" onClick={() => runPrediction(values)} type="button">
+                Recalculer
+              </button>
+            )}
+          </div>
         </div>
-      )}
+
+        <div className="result-panel">
+          {result ? (
+            <>
+              <div className="result-main">
+                <div className="category-mark">{CATEGORY_MARKS[result.categorie] || "EC"}</div>
+                <p className="result-label">Categorie predite</p>
+                <h3 className="result-category">{result.categorie}</h3>
+                <p className="result-copy">
+                  Resultat produit par le modele multimodal a partir des variables physiques.
+                </p>
+              </div>
+
+              <div className="price-block">
+                <div>
+                  <p className="result-label">Prix estime</p>
+                  <div className="price-value">{formatEuro(result.prix)} €</div>
+                  <div className="price-unit">Estimation instantanee pour ce lot</div>
+                </div>
+              </div>
+
+              <div className="signal-grid">
+                <div className="signal">
+                  <span>Poids</span>
+                  <strong>{formatMetric(values.poids, " kg")}</strong>
+                </div>
+                <div className="signal">
+                  <span>Volume</span>
+                  <strong>{formatMetric(values.volume, " L")}</strong>
+                </div>
+                <div className="signal">
+                  <span>Opacite</span>
+                  <strong>{formatMetric(values.opacite)}</strong>
+                </div>
+                <div className="signal">
+                  <span>Rigidite</span>
+                  <strong>{formatMetric(values.rigidite)}</strong>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="empty-state">
+              <div>
+                <strong>Prediction en preparation</strong>
+                Les premiers resultats apparaissent automatiquement.
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
 
-// ── NLP Tab ────────────────────────────────────────────────
 function AssistantNLP() {
   const [texte, setTexte] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const exemples = [
-    "Matériau métallique très rigide et lourd, conducteur électrique, aspect brillant.",
-    "Feuilles de papier et cartons souples, très légers, aspect opaque, non conducteur.",
-    "Conteneur plastique semi-rigide, léger, faible conductivité, usage alimentaire.",
-    "Bris de verre transparents, rigides, conductivité modérée, provenance ménagère.",
-  ];
-
-  const predire = async () => {
+  const predictText = async () => {
     if (!texte.trim()) return;
     setLoading(true);
     try {
-      const r = await axios.post(`${API}/predict/nlp`, { texte });
-      setResult(r.data);
-    } catch (e) {
-      alert("Erreur API !");
+      const response = await axios.post(`${API}/predict/nlp`, { texte });
+      setResult(response.data);
+    } catch (err) {
+      setResult({ error: "Analyse indisponible pour le moment." });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
     <div>
-      <div className="card">
-        <div className="card-title">💬 Assistant NLP — Description textuelle</div>
-        <textarea
-          className="nlp-textarea"
-          placeholder="Décrivez le déchet en français... (ex: matériau métallique rigide et lourd)"
-          value={texte}
-          onChange={e => setTexte(e.target.value)}
-        />
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 8 }}>Exemples rapides :</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {exemples.map((ex, i) => (
+      <PageIntro
+        eyebrow="Analyse textuelle"
+        title="Classifier une description libre"
+        copy="Utilisez une description en langage naturel pour valider la prediction NLP et visualiser le texte nettoye par le pipeline."
+        action={<div className="mini-action">Endpoint: /predict/nlp</div>}
+      />
+
+      <div className="nlp-layout">
+        <div className="text-panel">
+          <div className="panel-heading">
+            <h2>Description du dechet</h2>
+            <span>{texte.length} caracteres</span>
+          </div>
+          <textarea
+            className="nlp-textarea"
+            placeholder="Exemple: materiau metallique rigide et lourd, aspect brillant, conducteur electrique..."
+            value={texte}
+            onChange={(event) => setTexte(event.target.value)}
+          />
+          <div className="examples">
+            {NLP_EXAMPLES.map((example, index) => (
               <button
-                key={i}
-                onClick={() => setTexte(ex)}
-                style={{
-                  background: "#1e293b", border: "1px solid #334155",
-                  color: "#94a3b8", padding: "6px 12px", borderRadius: 6,
-                  cursor: "pointer", fontSize: 12, fontFamily: "Space Grotesk"
-                }}
+                className="example-button"
+                key={example}
+                onClick={() => setTexte(example)}
+                type="button"
               >
-                Exemple {i + 1}
+                Exemple {index + 1}
               </button>
             ))}
           </div>
+          <button className="primary-button" disabled={loading || !texte.trim()} onClick={predictText} type="button">
+            {loading ? "Analyse en cours..." : "Analyser le texte"}
+          </button>
         </div>
-        <button className="btn-predict" onClick={predire} disabled={loading || !texte.trim()}>
-          {loading ? <><span className="loading"></span>Analyse...</> : "🔍 Analyser le texte"}
-        </button>
-      </div>
 
-      {result && (
-        <div className="result-box">
-          <div className="result-icon">{ICONS[result.categorie] || "♻️"}</div>
-          <div className="result-category">{result.categorie}</div>
-          <div style={{ fontSize: 13, color: "#64748b", marginTop: 12 }}>
-            Texte nettoyé : <span style={{ color: "#94a3b8", fontFamily: "JetBrains Mono" }}>{result.texte_nettoye}</span>
-          </div>
+        <div className="nlp-result">
+          {result?.error ? (
+            <div className="empty-state">
+              <div>
+                <strong>Erreur API</strong>
+                {result.error}
+              </div>
+            </div>
+          ) : result ? (
+            <>
+              <div className="category-mark">{CATEGORY_MARKS[result.categorie] || "NL"}</div>
+              <p className="result-label">Categorie NLP</p>
+              <h3 className="result-category">{result.categorie}</h3>
+              <p className="result-copy">Texte conserve apres nettoyage du pipeline.</p>
+              <div className="clean-text">{result.texte_nettoye}</div>
+            </>
+          ) : (
+            <div className="empty-state">
+              <div>
+                <strong>Aucun texte analyse</strong>
+                Lancez une analyse pour afficher la categorie et le texte nettoye.
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
-// ── Main App ───────────────────────────────────────────────
 export default function App() {
-  const [tab, setTab] = useState(0);
+  const [tab, setTab] = useState(() => {
+    const hash = window.location.hash.replace("#", "");
+    const index = TAB_HASHES.indexOf(hash);
+    return index >= 0 ? index : 0;
+  });
   const [apiOk, setApiOk] = useState(false);
 
   useEffect(() => {
@@ -600,42 +1254,60 @@ export default function App() {
   }, []);
 
   const tabs = [
-    { label: "Dashboard", icon: "📊" },
-    { label: "Prédiction", icon: "🎛️" },
-    { label: "Assistant NLP", icon: "💬" },
+    { label: "Dashboard", icon: "DB" },
+    { label: "Prediction", icon: "PR" },
+    { label: "Assistant NLP", icon: "NL" },
   ];
+
+  const selectTab = (index) => {
+    setTab(index);
+    window.history.replaceState(null, "", `#${TAB_HASHES[index]}`);
+  };
 
   return (
     <>
       <style>{styles}</style>
       <div className="app">
-        <header className="header">
-          <div className="logo">
-            <div className="logo-icon">♻️</div>
-            <div className="logo-text">
-              <h1>Eco-Smart Classifier</h1>
-              <p>ML Pipeline · FastAPI · React</p>
+        <header className="topbar">
+          <div className="topbar-inner">
+            <div className="brand">
+              <div className="brand-mark">EC</div>
+              <div>
+                <h1>Eco-Smart Classifier</h1>
+                <p>FastAPI, React et modeles ML deployables en Docker</p>
+              </div>
             </div>
-          </div>
-          <div className="api-status">
-            <div className="status-dot" style={{ background: apiOk ? "#10b981" : "#ef4444" }}></div>
-            API {apiOk ? "Connected" : "Offline"}
+            <div className="status-pill">
+              <span
+                className="status-dot"
+                style={{ background: apiOk ? "#167a4a" : "#b42318" }}
+              />
+              API {apiOk ? "connectee" : "hors ligne"}
+            </div>
           </div>
         </header>
 
-        <div className="tabs">
-          {tabs.map((t, i) => (
-            <button key={i} className={`tab ${tab === i ? "active" : ""}`} onClick={() => setTab(i)}>
-              {t.icon} {t.label}
-            </button>
-          ))}
+        <div className="tabs-wrap">
+          <nav className="tabs" aria-label="Navigation principale">
+            {tabs.map((item, index) => (
+              <button
+                className={`tab ${tab === index ? "active" : ""}`}
+                key={item.label}
+                onClick={() => selectTab(index)}
+                type="button"
+              >
+                <span className="tab-icon">{item.icon}</span>
+                {item.label}
+              </button>
+            ))}
+          </nav>
         </div>
 
-        <div className="content">
+        <main className="content">
           {tab === 0 && <Dashboard />}
           {tab === 1 && <Prediction />}
           {tab === 2 && <AssistantNLP />}
-        </div>
+        </main>
       </div>
     </>
   );

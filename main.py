@@ -6,6 +6,7 @@ from pydantic import BaseModel
 import numpy as np
 from pathlib import Path
 import re
+import unicodedata
 
 app = FastAPI(title="Eco-Smart Classifier API")
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -18,22 +19,93 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-STOPWORDS = [
+STOPWORDS = {
     "le","la","les","un","une","des","de","du","en","et","est",
-    "au","aux","par","sur","dans","ou","à","se","ce","qui","que",
+    "au","aux","par","sur","dans","ou","a","se","ce","qui","que",
     "qu","il","elle","ils","elles","nous","vous","on","y","si",
-    "ne","pas","plus","très","avec","pour","son","sa","ses","leur",
-    "leurs","dont","lot","déchet","collecté","collecte","site",
-    "volume","poids","type","provenance","identifié","récupéré"
-]
+    "ne","pas","plus","tres","avec","pour","son","sa","ses","leur",
+    "leurs","dont","lot","dechet","collecte","site","volume","poids",
+    "type","provenance","identifie","recupere","materiau","materiaux",
+    "à","très","déchet","collecté","identifié","récupéré","matériau",
+    "matériaux"
+}
+
+CATEGORY_ALIASES = {
+    "MÃ©tal": "Métal",
+    "MÃƒÂ©tal": "Métal",
+    "Métal": "Métal",
+    "Metal": "Métal",
+    "Papier": "Papier",
+    "Plastique": "Plastique",
+    "Verre": "Verre",
+}
+
+NLP_KEYWORDS = {
+    "Métal": {
+        "metal", "metallique", "fer", "acier", "aluminium", "cuivre",
+        "conducteur", "conductivite", "brillant", "rouille", "aimant",
+        "canette", "boite",
+    },
+    "Papier": {
+        "papier", "carton", "feuille", "feuilles", "journal", "journaux",
+        "magazine", "enveloppe", "souple", "opaque", "leger",
+    },
+    "Plastique": {
+        "plastique", "bouteille", "bidon", "sachet", "emballage",
+        "polyethylene", "pet", "pvc", "recyclable", "leger", "semi",
+        "alimentaire",
+    },
+    "Verre": {
+        "verre", "vitrage", "transparent", "transparente", "bocal",
+        "bris", "casse", "cassons", "bouteille", "rigide", "fragile",
+        "dense",
+    },
+}
+
+STRONG_NLP_KEYWORDS = {
+    "Métal": {"metal", "metallique", "fer", "acier", "aluminium", "cuivre"},
+    "Papier": {"papier", "carton", "feuille", "feuilles", "journal"},
+    "Plastique": {"plastique", "pet", "pvc", "polyethylene"},
+    "Verre": {"verre", "vitrage", "bocal"},
+}
+
+def normaliser_texte(texte):
+    texte = texte.lower()
+    texte = unicodedata.normalize("NFKD", texte)
+    texte = "".join(char for char in texte if not unicodedata.combining(char))
+    return texte
 
 def nettoyer_texte(texte):
     texte = texte.lower()
     texte = re.sub(r'[0-9]', '', texte)
-    texte = re.sub(r'[^\w\s]', '', texte)
+    texte = re.sub(r'[_]', ' ', texte)
+    texte = re.sub(r'[^\w\s]', ' ', texte)
     texte = re.sub(r'\s+', ' ', texte).strip()
     mots = [m for m in texte.split() if m not in STOPWORDS and len(m) >= 3]
     return " ".join(mots)
+
+def normaliser_categorie(categorie):
+    return CATEGORY_ALIASES.get(str(categorie), str(categorie))
+
+def categorie_par_mots_cles(texte_propre):
+    tokens = set(normaliser_texte(texte_propre).split())
+    scores = {
+        categorie: sum(1 for mot in mots if mot in tokens)
+        for categorie, mots in NLP_KEYWORDS.items()
+    }
+    best_category, best_score = max(scores.items(), key=lambda item: item[1])
+    strong_hit = any(mot in tokens for mot in STRONG_NLP_KEYWORDS[best_category])
+    if best_score >= 2 or strong_hit:
+        return best_category, scores
+    return None, scores
+
+def predire_categorie_nlp_hybride(texte_propre, modele, vectorizer):
+    X = vectorizer.transform([texte_propre])
+    prediction_modele = normaliser_categorie(modele.predict(X)[0])
+    prediction_mots_cles, scores = categorie_par_mots_cles(texte_propre)
+    prediction_finale = prediction_mots_cles or prediction_modele
+    source = "mots_cles+modele" if prediction_mots_cles else "modele"
+    return prediction_finale, prediction_modele, scores, source
 
 # ── Chargement lazy des modèles ────────────────────────────
 _models = {}
@@ -99,7 +171,7 @@ def predire_categorie(data: DonneesNumeriques):
     ]])
     X = hstack([X_text, csr_matrix(X_num)])
     pred = m["multi"].predict(X)[0]
-    return {"categorie": str(pred)}
+    return {"categorie": normaliser_categorie(pred)}
 
 @app.post("/predict/regression")
 def predire_prix(data: DonneesNumeriques):
@@ -112,19 +184,28 @@ def predire_prix(data: DonneesNumeriques):
     ]])
     X = hstack([X_text, csr_matrix(X_num)])
     pred = m["multi"].predict(X)[0]
-    categorie = str(pred)
+    categorie = normaliser_categorie(pred)
     prix_base = PRIX_PAR_CATEGORIE.get(categorie, 5.0)
     facteur = min(data.poids / 100, 2.0)
     prix = round(prix_base * (1 + facteur * 0.3), 2)
-    return {"prix_estime": prix, "categorie": categorie}
+    return {"prix_estime": prix, "devise": "TND", "categorie": categorie}
 
 @app.post("/predict/nlp")
 def predire_nlp(data: DonneesNLP):
     m = get_models()
     texte_propre = nettoyer_texte(data.texte)
-    X = m["tfidf"].transform([texte_propre])
-    pred = m["nlp"].predict(X)[0]
-    return {"categorie": str(pred), "texte_nettoye": texte_propre}
+    pred, pred_modele, scores, source = predire_categorie_nlp_hybride(
+        texte_propre,
+        m["nlp"],
+        m["tfidf"],
+    )
+    return {
+        "categorie": pred,
+        "texte_nettoye": texte_propre,
+        "prediction_modele": pred_modele,
+        "scores_mots_cles": scores,
+        "source": source,
+    }
 
 
 if STATIC_DIR.exists():

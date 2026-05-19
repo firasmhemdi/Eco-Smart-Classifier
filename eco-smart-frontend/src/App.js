@@ -166,15 +166,38 @@ const styles = `
 
   .brand-mark {
     align-items: center;
-    background: #153824;
+    background:
+      linear-gradient(135deg, rgba(255, 255, 255, 0.18), transparent 45%),
+      #153824;
     border-radius: 8px;
     color: #d8ffe7;
     display: inline-flex;
+    flex-direction: column;
+    font-size: 10px;
     font-weight: 800;
     height: 40px;
     justify-content: center;
     letter-spacing: 0;
+    line-height: 1;
+    position: relative;
     width: 40px;
+  }
+
+  .brand-mark::before {
+    background: #54d37e;
+    border-radius: 8px 8px 8px 2px;
+    content: "";
+    height: 12px;
+    position: absolute;
+    right: 7px;
+    top: 6px;
+    transform: rotate(-28deg);
+    width: 8px;
+  }
+
+  .brand-mark span {
+    position: relative;
+    top: 4px;
   }
 
   .brand h1 {
@@ -727,6 +750,13 @@ const styles = `
     word-break: break-word;
   }
 
+  .nlp-meta {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    margin-top: 10px;
+  }
+
   .tooltip {
     background: #ffffff;
     border: 1px solid var(--line);
@@ -812,7 +842,7 @@ function formatNumber(value) {
   return new Intl.NumberFormat("fr-FR").format(value);
 }
 
-function formatEuro(value) {
+function formatTnd(value) {
   if (value === null || value === undefined) return "-";
   return new Intl.NumberFormat("fr-FR", {
     maximumFractionDigits: 2,
@@ -1042,6 +1072,7 @@ function Prediction() {
       setResult({
         categorie: classification.data.categorie,
         prix: regression.data.prix_estime,
+        devise: regression.data.devise || "TND",
       });
     } catch (err) {
       setError("Prediction indisponible. Verifiez que l'API est demarree.");
@@ -1117,7 +1148,7 @@ function Prediction() {
               <div className="price-block">
                 <div>
                   <p className="result-label">Prix estime</p>
-                  <div className="price-value">{formatEuro(result.prix)} €</div>
+                  <div className="price-value">{formatTnd(result.prix)} {result.devise || "TND"}</div>
                   <div className="price-unit">Estimation instantanee pour ce lot</div>
                 </div>
               </div>
@@ -1225,6 +1256,9 @@ function AssistantNLP() {
               <p className="result-label">Categorie NLP</p>
               <h3 className="result-category">{result.categorie}</h3>
               <p className="result-copy">Texte conserve apres nettoyage du pipeline.</p>
+              {result.source ? (
+                <div className="nlp-meta">Decision: {result.source}</div>
+              ) : null}
               <div className="clean-text">{result.texte_nettoye}</div>
             </>
           ) : (
@@ -1271,7 +1305,9 @@ export default function App() {
         <header className="topbar">
           <div className="topbar-inner">
             <div className="brand">
-              <div className="brand-mark">EC</div>
+              <div className="brand-mark" aria-label="Logo Eco-Smart">
+                <span>ES</span>
+              </div>
               <div>
                 <h1>Eco-Smart Classifier</h1>
                 <p>FastAPI, React et modeles ML deployables en Docker</p>

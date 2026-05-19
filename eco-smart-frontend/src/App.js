@@ -385,9 +385,36 @@ const styles = `
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 
+  .artifacts-grid {
+    display: grid;
+    gap: 20px;
+    grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+    margin-top: 20px;
+  }
+
   .chart-panel {
     min-height: 335px;
     padding: 22px;
+  }
+
+  .artifact-image {
+    background: #fbfcfb;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    display: block;
+    height: auto;
+    margin-top: 12px;
+    max-height: 360px;
+    object-fit: contain;
+    padding: 10px;
+    width: 100%;
+  }
+
+  .artifact-note {
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 0;
   }
 
   .panel-heading {
@@ -781,6 +808,7 @@ const styles = `
 
     .metric-grid,
     .charts-grid,
+    .artifacts-grid,
     .model-strip {
       grid-template-columns: 1fr;
     }
@@ -986,6 +1014,38 @@ function Dashboard() {
               />
             </BarChart>
           </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="artifacts-grid">
+        <div className="chart-panel">
+          <div className="panel-heading">
+            <h2>Clusters PCA</h2>
+            <span>K-Means k=4</span>
+          </div>
+          <p className="artifact-note">
+            Projection 2D des lots de dechets apres standardisation des variables numeriques.
+          </p>
+          <img
+            className="artifact-image"
+            src={`${API}/artifacts/clusters_pca.png`}
+            alt="Visualisation PCA des clusters K-Means"
+          />
+        </div>
+
+        <div className="chart-panel">
+          <div className="panel-heading">
+            <h2>Methode du coude</h2>
+            <span>Choix du nombre de clusters</span>
+          </div>
+          <p className="artifact-note">
+            Le coude justifie le choix de quatre groupes pour rapprocher les clusters des familles de dechets.
+          </p>
+          <img
+            className="artifact-image"
+            src={`${API}/artifacts/elbow_method.png`}
+            alt="Methode du coude pour choisir k"
+          />
         </div>
       </div>
 

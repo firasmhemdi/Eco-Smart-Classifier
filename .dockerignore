@@ -12,6 +12,8 @@ mlflow.db
 dataset_ProjetML_2026.csv
 *.ipynb
 *.png
+!clusters_pca.png
+!elbow_method.png
 *.zip
 
 .git/

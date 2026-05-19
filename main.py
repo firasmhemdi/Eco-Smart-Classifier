@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -10,6 +10,7 @@ import unicodedata
 
 app = FastAPI(title="Eco-Smart Classifier API")
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+ARTIFACTS_DIR = Path(__file__).resolve().parent / "artifacts"
 
 app.add_middleware(
     CORSMiddleware,
@@ -206,6 +207,14 @@ def predire_nlp(data: DonneesNLP):
         "scores_mots_cles": scores,
         "source": source,
     }
+
+@app.get("/artifacts/{filename}")
+def get_artifact(filename: str):
+    allowed_files = {"clusters_pca.png", "elbow_method.png"}
+    artifact_path = ARTIFACTS_DIR / filename
+    if filename not in allowed_files or not artifact_path.exists():
+        raise HTTPException(status_code=404, detail="Artifact not found")
+    return FileResponse(artifact_path)
 
 
 if STATIC_DIR.exists():

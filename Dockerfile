@@ -23,6 +23,7 @@ RUN pip install --no-cache-dir --upgrade pip \
 
 COPY main.py .
 COPY models ./models
+COPY clusters_pca.png elbow_method.png ./artifacts/
 COPY --from=frontend-build /frontend/build ./static
 
 EXPOSE 8000

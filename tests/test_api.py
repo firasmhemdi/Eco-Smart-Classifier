@@ -46,6 +46,26 @@ def test_regression_endpoint_returns_price_and_category(client, numeric_payload)
     assert data["prix_estime"] > 0
     assert data["devise"] == "TND"
     assert data["modele_prix"] == "model_regression.pkl"
+    assert data["calibration"] == "minimum_prix_par_kg"
+
+
+@pytest.mark.api
+def test_regression_price_increases_for_heavier_same_paper_payload(client):
+    light_payload = {
+        "poids": 87,
+        "volume": 35,
+        "conductivite": 0.1,
+        "opacite": 1.0,
+        "rigidite": 5.0,
+    }
+    heavy_payload = {**light_payload, "poids": 252}
+
+    light = client.post("/predict/regression", json=light_payload).json()
+    heavy = client.post("/predict/regression", json=heavy_payload).json()
+
+    assert light["categorie"] == "Papier"
+    assert heavy["categorie"] == "Papier"
+    assert heavy["prix_estime"] > light["prix_estime"]
 
 
 @pytest.mark.api

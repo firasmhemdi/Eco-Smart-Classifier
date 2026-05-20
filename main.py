@@ -48,6 +48,12 @@ CATEGORY_ALIASES = {
     "Verre": "Verre",
 }
 
+def corriger_encodage_categorie(categorie):
+    categorie_str = str(categorie)
+    if "tal" in categorie_str and categorie_str.startswith("M"):
+        return "Métal"
+    return categorie_str
+
 NUMERIC_COLUMNS = ["Poids", "Volume", "Conductivite", "Opacite", "Rigidite"]
 SOURCE_COLUMNS = [
     "Source_Centre_Tri",
@@ -65,6 +71,14 @@ SOURCE_ALIASES = {
     "usine a": "Source_Usine_A",
     "usine_b": "Source_Usine_B",
     "usine b": "Source_Usine_B",
+}
+
+# Median resale value per kg observed in the cleaned dataset.
+PRIX_MIN_PAR_KG = {
+    "Métal": 0.30,
+    "Papier": 0.05,
+    "Plastique": 0.10,
+    "Verre": 0.03,
 }
 
 NLP_KEYWORDS = {
@@ -112,16 +126,17 @@ def nettoyer_texte(texte):
     return " ".join(mots)
 
 def normaliser_categorie(categorie):
-    categorie_str = str(categorie)
+    categorie_str = corriger_encodage_categorie(categorie)
     if categorie_str in CATEGORY_ALIASES:
-        return CATEGORY_ALIASES[categorie_str]
+        return corriger_encodage_categorie(CATEGORY_ALIASES[categorie_str])
     try:
         categorie_num = float(categorie_str)
         if categorie_num.is_integer():
             categorie_str = str(int(categorie_num))
     except ValueError:
         pass
-    return CATEGORY_BY_ID.get(categorie_str, CATEGORY_ALIASES.get(categorie_str, categorie_str))
+    categorie_norm = CATEGORY_BY_ID.get(categorie_str, CATEGORY_ALIASES.get(categorie_str, categorie_str))
+    return corriger_encodage_categorie(categorie_norm)
 
 def vecteur_numerique(data):
     return np.array([[
@@ -149,6 +164,14 @@ def predire_prix_modele(data, models):
     X_reg = features_regression(data, models)
     prix = float(models["regression"].predict(X_reg)[0])
     return round(max(prix, 0.0), 2)
+
+def calibrer_prix_par_poids(data, categorie, prix_modele):
+    categorie_norm = normaliser_categorie(categorie)
+    prix_minimum = PRIX_MIN_PAR_KG.get(categorie_norm)
+    if prix_minimum is None:
+        return prix_modele
+    prix_par_poids = max(data.poids, 0.0) * prix_minimum
+    return round(max(prix_modele, prix_par_poids), 2)
 
 def features_classification(data, models, prix_estime=None):
     numeriques = models["scaler"].transform(vecteur_numerique(data))[0]
@@ -230,27 +253,34 @@ def stats_dataset():
 @app.post("/predict/classification")
 def predire_categorie(data: DonneesNumeriques):
     m = get_models()
-    prix_estime = predire_prix_modele(data, m)
-    X = features_classification(data, m, prix_estime=prix_estime)
+    prix_modele = predire_prix_modele(data, m)
+    X = features_classification(data, m, prix_estime=prix_modele)
     pred = m["classification"].predict(X)[0]
+    categorie = normaliser_categorie(pred)
+    prix_estime = calibrer_prix_par_poids(data, categorie, prix_modele)
     return {
-        "categorie": normaliser_categorie(pred),
+        "categorie": categorie,
         "modele_utilise": "model_classification.pkl",
         "prix_utilise": prix_estime,
+        "prix_modele_brut": prix_modele,
     }
 
 @app.post("/predict/regression")
 def predire_prix(data: DonneesNumeriques):
     m = get_models()
-    prix = predire_prix_modele(data, m)
-    X_class = features_classification(data, m, prix_estime=prix)
+    prix_modele = predire_prix_modele(data, m)
+    X_class = features_classification(data, m, prix_estime=prix_modele)
     pred = m["classification"].predict(X_class)[0]
+    categorie = normaliser_categorie(pred)
+    prix = calibrer_prix_par_poids(data, categorie, prix_modele)
     return {
         "prix_estime": prix,
+        "prix_modele_brut": prix_modele,
         "devise": "TND",
-        "categorie": normaliser_categorie(pred),
+        "categorie": categorie,
         "modele_prix": "model_regression.pkl",
         "modele_categorie": "model_classification.pkl",
+        "calibration": "minimum_prix_par_kg",
     }
 
 @app.post("/predict/nlp")

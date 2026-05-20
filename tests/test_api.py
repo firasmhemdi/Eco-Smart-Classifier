@@ -32,6 +32,7 @@ def test_classification_endpoint_returns_category(client, numeric_payload):
 
     assert response.status_code == 200
     assert data["categorie"] in EXPECTED_CATEGORIES
+    assert data["modele_utilise"] == "model_classification.pkl"
 
 
 @pytest.mark.api
@@ -43,6 +44,8 @@ def test_regression_endpoint_returns_price_and_category(client, numeric_payload)
     assert data["categorie"] in EXPECTED_CATEGORIES
     assert isinstance(data["prix_estime"], (int, float))
     assert data["prix_estime"] > 0
+    assert data["devise"] == "TND"
+    assert data["modele_prix"] == "model_regression.pkl"
 
 
 @pytest.mark.api

@@ -31,6 +31,13 @@ STOPWORDS = {
     "matériaux"
 }
 
+CATEGORY_BY_ID = {
+    "0": "MÃ©tal",
+    "1": "Papier",
+    "2": "Plastique",
+    "3": "Verre",
+}
+
 CATEGORY_ALIASES = {
     "MÃ©tal": "Métal",
     "MÃƒÂ©tal": "Métal",
@@ -39,6 +46,25 @@ CATEGORY_ALIASES = {
     "Papier": "Papier",
     "Plastique": "Plastique",
     "Verre": "Verre",
+}
+
+NUMERIC_COLUMNS = ["Poids", "Volume", "Conductivite", "Opacite", "Rigidite"]
+SOURCE_COLUMNS = [
+    "Source_Centre_Tri",
+    "Source_Collecte_Citoyenne",
+    "Source_Usine_A",
+    "Source_Usine_B",
+]
+
+SOURCE_ALIASES = {
+    "centre_tri": "Source_Centre_Tri",
+    "centre tri": "Source_Centre_Tri",
+    "collecte_citoyenne": "Source_Collecte_Citoyenne",
+    "collecte citoyenne": "Source_Collecte_Citoyenne",
+    "usine_a": "Source_Usine_A",
+    "usine a": "Source_Usine_A",
+    "usine_b": "Source_Usine_B",
+    "usine b": "Source_Usine_B",
 }
 
 NLP_KEYWORDS = {
@@ -86,7 +112,50 @@ def nettoyer_texte(texte):
     return " ".join(mots)
 
 def normaliser_categorie(categorie):
-    return CATEGORY_ALIASES.get(str(categorie), str(categorie))
+    categorie_str = str(categorie)
+    if categorie_str in CATEGORY_ALIASES:
+        return CATEGORY_ALIASES[categorie_str]
+    try:
+        categorie_num = float(categorie_str)
+        if categorie_num.is_integer():
+            categorie_str = str(int(categorie_num))
+    except ValueError:
+        pass
+    return CATEGORY_BY_ID.get(categorie_str, CATEGORY_ALIASES.get(categorie_str, categorie_str))
+
+def vecteur_numerique(data):
+    return np.array([[
+        data.poids,
+        data.volume,
+        data.conductivite,
+        data.opacite,
+        data.rigidite,
+    ]], dtype=float)
+
+def encoder_source(source):
+    valeurs = {col: 0.0 for col in SOURCE_COLUMNS}
+    if source:
+        source_key = str(source).strip().lower()
+        colonne = SOURCE_ALIASES.get(source_key)
+        if colonne:
+            valeurs[colonne] = 1.0
+    return [valeurs[col] for col in SOURCE_COLUMNS]
+
+def features_regression(data, models):
+    numeriques = models["scaler"].transform(vecteur_numerique(data))[0]
+    return np.array([list(numeriques) + encoder_source(data.source)], dtype=float)
+
+def predire_prix_modele(data, models):
+    X_reg = features_regression(data, models)
+    prix = float(models["regression"].predict(X_reg)[0])
+    return round(max(prix, 0.0), 2)
+
+def features_classification(data, models, prix_estime=None):
+    numeriques = models["scaler"].transform(vecteur_numerique(data))[0]
+    prix = data.prix_revente if data.prix_revente is not None else prix_estime
+    if prix is None:
+        prix = predire_prix_modele(data, models)
+    return np.array([list(numeriques) + [float(prix)] + encoder_source(data.source)], dtype=float)
 
 def categorie_par_mots_cles(texte_propre):
     tokens = set(normaliser_texte(texte_propre).split())
@@ -114,7 +183,9 @@ _models = {}
 def get_models():
     if not _models:
         import joblib
-        from scipy.sparse import hstack, csr_matrix
+        _models["classification"] = joblib.load("models/model_classification.pkl")
+        _models["regression"] = joblib.load("models/model_regression.pkl")
+        _models["scaler"] = joblib.load("models/scaler.pkl")
         _models["nlp"]    = joblib.load("models/model_nlp.pkl")
         _models["tfidf"]  = joblib.load("models/tfidf_vectorizer.pkl")
         _models["multi"]  = joblib.load("models/model_multi.pkl")
@@ -122,19 +193,14 @@ def get_models():
         _models["scaler_multi"] = joblib.load("models/scaler_multi.pkl")
     return _models
 
-PRIX_PAR_CATEGORIE = {
-    "Métal"    : 15.0,
-    "Papier"   : 3.5,
-    "Plastique": 5.0,
-    "Verre"    : 2.0,
-}
-
 class DonneesNumeriques(BaseModel):
     poids: float
     volume: float
     conductivite: float
     opacite: float
     rigidite: float
+    source: str | None = None
+    prix_revente: float | None = None
 
 class DonneesNLP(BaseModel):
     texte: str
@@ -163,33 +229,29 @@ def stats_dataset():
 
 @app.post("/predict/classification")
 def predire_categorie(data: DonneesNumeriques):
-    from scipy.sparse import hstack, csr_matrix
     m = get_models()
-    X_text = m["tfidf_multi"].transform([""])
-    X_num  = m["scaler_multi"].transform([[
-        data.poids, data.volume, data.conductivite,
-        data.opacite, data.rigidite
-    ]])
-    X = hstack([X_text, csr_matrix(X_num)])
-    pred = m["multi"].predict(X)[0]
-    return {"categorie": normaliser_categorie(pred)}
+    prix_estime = predire_prix_modele(data, m)
+    X = features_classification(data, m, prix_estime=prix_estime)
+    pred = m["classification"].predict(X)[0]
+    return {
+        "categorie": normaliser_categorie(pred),
+        "modele_utilise": "model_classification.pkl",
+        "prix_utilise": prix_estime,
+    }
 
 @app.post("/predict/regression")
 def predire_prix(data: DonneesNumeriques):
-    from scipy.sparse import hstack, csr_matrix
     m = get_models()
-    X_text = m["tfidf_multi"].transform([""])
-    X_num  = m["scaler_multi"].transform([[
-        data.poids, data.volume, data.conductivite,
-        data.opacite, data.rigidite
-    ]])
-    X = hstack([X_text, csr_matrix(X_num)])
-    pred = m["multi"].predict(X)[0]
-    categorie = normaliser_categorie(pred)
-    prix_base = PRIX_PAR_CATEGORIE.get(categorie, 5.0)
-    facteur = min(data.poids / 100, 2.0)
-    prix = round(prix_base * (1 + facteur * 0.3), 2)
-    return {"prix_estime": prix, "devise": "TND", "categorie": categorie}
+    prix = predire_prix_modele(data, m)
+    X_class = features_classification(data, m, prix_estime=prix)
+    pred = m["classification"].predict(X_class)[0]
+    return {
+        "prix_estime": prix,
+        "devise": "TND",
+        "categorie": normaliser_categorie(pred),
+        "modele_prix": "model_regression.pkl",
+        "modele_categorie": "model_classification.pkl",
+    }
 
 @app.post("/predict/nlp")
 def predire_nlp(data: DonneesNLP):

@@ -7,6 +7,9 @@ from conftest import EXPECTED_CATEGORIES, MODELS_DIR
 
 
 REQUIRED_MODEL_FILES = [
+    "model_classification.pkl",
+    "model_regression.pkl",
+    "scaler.pkl",
     "model_nlp.pkl",
     "tfidf_vectorizer.pkl",
     "model_multi.pkl",
@@ -27,7 +30,16 @@ def test_required_model_files_exist():
 def test_get_models_loads_required_objects():
     models = main.get_models()
 
-    assert set(models) >= {"nlp", "tfidf", "multi", "tfidf_multi", "scaler_multi"}
+    assert set(models) >= {
+        "classification",
+        "regression",
+        "scaler",
+        "nlp",
+        "tfidf",
+        "multi",
+        "tfidf_multi",
+        "scaler_multi",
+    }
     for model in models.values():
         assert model is not None
 

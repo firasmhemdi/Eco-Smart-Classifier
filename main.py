@@ -129,6 +129,42 @@ SEMANTIC_PROTOTYPES = {
     ],
 }
 
+OBJECT_PATTERNS = {
+    "Plastique": [
+        r"\bbouteilles?\s+d\s*eau\b",
+        r"\bbouteilles?\s+eau\b",
+        r"\bbouteilles?\s+plastiques?\b",
+        r"\bflacons?\b",
+        r"\bbidons?\b",
+        r"\bsachets?\b",
+        r"\bemballages?\s+alimentaires?\b",
+        r"\bfilms?\s+plastiques?\b",
+        r"\bgobelets?\s+plastiques?\b",
+    ],
+    "Verre": [
+        r"\bbouteilles?\s+de\s+verre\b",
+        r"\bbocaux?\b",
+        r"\bvitres?\b",
+        r"\bvitrages?\b",
+        r"\bverres?\s+casses?\b",
+    ],
+    "Papier": [
+        r"\bfeuilles?\b",
+        r"\bcartons?\b",
+        r"\bmagazines?\b",
+        r"\bjourna(?:l|ux)\b",
+        r"\benveloppes?\b",
+    ],
+    "MÃ©tal": [
+        r"\bcanettes?\b",
+        r"\bboites?\s+de\s+conserve\b",
+        r"\bferrailles?\b",
+        r"\btoles?\b",
+        r"\bclous?\b",
+        r"\bvis\b",
+    ],
+}
+
 def normaliser_texte(texte):
     texte = texte.lower()
     texte = unicodedata.normalize("NFKD", texte)
@@ -219,6 +255,14 @@ def mots_cles_detectes(texte_propre):
         if mots & tokens
     }
 
+def categorie_par_objet(texte_original, texte_propre):
+    texte_normalise = normaliser_texte(f"{texte_original} {texte_propre}")
+    for categorie, patterns in OBJECT_PATTERNS.items():
+        for pattern in patterns:
+            if re.search(pattern, texte_normalise):
+                return normaliser_categorie(categorie), pattern
+    return None, None
+
 def similarite_cosinus_sparse(a, b):
     denominateur = np.sqrt(a.multiply(a).sum()) * np.sqrt(b.multiply(b).sum())
     if denominateur == 0:
@@ -270,7 +314,7 @@ def niveau_confiance(score):
         return "moyenne"
     return "faible"
 
-def expliquer_prediction_nlp(prediction_finale, prediction_modele, scores, detected, source, confiance, semantique):
+def expliquer_prediction_nlp(prediction_finale, prediction_modele, scores, detected, source, confiance, semantique, objet_detecte):
     best_category, best_score = max(scores.items(), key=lambda item: item[1])
     best_category = normaliser_categorie(best_category)
     mots = detected.get(best_category, [])
@@ -278,7 +322,13 @@ def expliquer_prediction_nlp(prediction_finale, prediction_modele, scores, detec
     sem_category = semantique["categorie"]
     sem_score = round(semantique["score"] * 100, 1)
 
-    if source == "mots_cles+modele" and mots_resume:
+    if source == "objet+modele":
+        explication = (
+            f"La decision finale est {prediction_finale} car l'assistant a reconnu "
+            f"un objet courant associe a cette matiere. Le modele TF-IDF proposait "
+            f"{prediction_modele}."
+        )
+    elif source == "mots_cles+modele" and mots_resume:
         explication = (
             f"La decision finale est {prediction_finale} car le texte contient "
             f"des indices importants: {mots_resume}. Le modele TF-IDF proposait "
@@ -297,7 +347,9 @@ def expliquer_prediction_nlp(prediction_finale, prediction_modele, scores, detec
             f"et la similarite semantique avec les profils de categories."
         )
 
-    if best_score == 0:
+    if objet_detecte:
+        conseil = "L'objet saisi est reconnu directement par l'assistant de detection."
+    elif best_score == 0:
         conseil = "Ajoutez des mots plus precis comme plastique, verre, carton, acier, conducteur ou transparent."
     elif confiance < 0.5:
         conseil = "La confiance est faible: ajoutez plus de details sur la matiere, la rigidite, la transparence ou la conductivite."
@@ -306,15 +358,18 @@ def expliquer_prediction_nlp(prediction_finale, prediction_modele, scores, detec
 
     return explication, conseil
 
-def predire_categorie_nlp_hybride(texte_propre, modele, vectorizer):
+def predire_categorie_nlp_hybride(texte_original, texte_propre, modele, vectorizer):
     X = vectorizer.transform([texte_propre])
     prediction_modele = normaliser_categorie(modele.predict(X)[0])
+    prediction_objet, objet_pattern = categorie_par_objet(texte_original, texte_propre)
     prediction_mots_cles, scores = categorie_par_mots_cles(texte_propre)
     prediction_mots_cles = normaliser_categorie(prediction_mots_cles) if prediction_mots_cles else None
     semantique = analyse_semantique(texte_propre, vectorizer)
     prediction_semantique = semantique["categorie"] if semantique["score"] >= 0.08 else None
-    prediction_finale = prediction_mots_cles or prediction_semantique or prediction_modele
-    if prediction_mots_cles:
+    prediction_finale = prediction_objet or prediction_mots_cles or prediction_semantique or prediction_modele
+    if prediction_objet:
+        source = "objet+modele"
+    elif prediction_mots_cles:
         source = "mots_cles+modele"
     elif prediction_semantique:
         source = "semantique+modele"
@@ -323,7 +378,11 @@ def predire_categorie_nlp_hybride(texte_propre, modele, vectorizer):
     confiance_modele = confiance_depuis_modele(modele, X, prediction_modele)
     meilleur_score_mots = max(scores.values()) if scores else 0
 
-    if prediction_mots_cles:
+    if prediction_objet:
+        confiance = 0.9
+        if prediction_objet == prediction_modele:
+            confiance = 0.96
+    elif prediction_mots_cles:
         confiance = min(0.95, 0.58 + meilleur_score_mots * 0.1)
         if prediction_mots_cles == prediction_modele:
             confiance = min(0.98, confiance + 0.12)
@@ -343,10 +402,13 @@ def predire_categorie_nlp_hybride(texte_propre, modele, vectorizer):
         source,
         confiance,
         semantique,
+        objet_pattern,
     )
     return {
         "categorie": prediction_finale,
         "prediction_modele": prediction_modele,
+        "prediction_objet": prediction_objet,
+        "objet_detecte": objet_pattern,
         "prediction_semantique": prediction_semantique,
         "analyse_semantique": semantique,
         "scores_mots_cles": scores,
@@ -446,6 +508,7 @@ def predire_nlp(data: DonneesNLP):
     m = get_models()
     texte_propre = nettoyer_texte(data.texte)
     analyse = predire_categorie_nlp_hybride(
+        data.texte,
         texte_propre,
         m["nlp"],
         m["tfidf"],

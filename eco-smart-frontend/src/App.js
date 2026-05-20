@@ -1401,6 +1401,9 @@ function AssistantNLP() {
               {result.source ? (
                 <div className="nlp-meta">Decision: {result.source}</div>
               ) : null}
+              {result.prediction_objet ? (
+                <div className="nlp-meta">Objet reconnu: {result.prediction_objet}</div>
+              ) : null}
               {result.analyse_semantique?.categorie ? (
                 <div className="nlp-meta">
                   Profil semantique: {result.analyse_semantique.categorie} (

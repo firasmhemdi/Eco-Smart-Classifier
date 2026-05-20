@@ -91,6 +91,17 @@ def test_nlp_endpoint_returns_category_and_cleaned_text(client):
 
 
 @pytest.mark.api
+def test_nlp_endpoint_detects_common_plastic_object(client):
+    response = client.post("/predict/nlp", json={"texte": "des bouteilles d eau"})
+    data = response.json()
+
+    assert response.status_code == 200
+    assert data["categorie"] == "Plastique"
+    assert data["source"] == "objet+modele"
+    assert data["prediction_objet"] == "Plastique"
+
+
+@pytest.mark.api
 def test_classification_endpoint_rejects_invalid_payload(client):
     response = client.post("/predict/classification", json={"poids": "invalid"})
 

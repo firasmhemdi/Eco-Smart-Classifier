@@ -234,4 +234,4 @@ render.yaml
 
 ## Auteur
 
-Firas Mhemdi - Mastere DSIR1, ISET Sfax
+Firas Mhemdi et Amir Eljaziri - Mastere DSIR1, ISET Sfax

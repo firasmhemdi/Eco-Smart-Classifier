@@ -192,13 +192,101 @@ def categorie_par_mots_cles(texte_propre):
         return best_category, scores
     return None, scores
 
+def mots_cles_detectes(texte_propre):
+    tokens = set(normaliser_texte(texte_propre).split())
+    return {
+        normaliser_categorie(categorie): sorted(mots & tokens)
+        for categorie, mots in NLP_KEYWORDS.items()
+        if mots & tokens
+    }
+
+def confiance_depuis_modele(modele, X, prediction_modele):
+    if not hasattr(modele, "decision_function"):
+        return 0.5
+
+    scores = np.asarray(modele.decision_function(X))
+    if scores.ndim == 1:
+        scores = np.vstack([-scores, scores]).T
+
+    scores = scores[0]
+    scores = scores - np.max(scores)
+    probabilities = np.exp(scores) / np.exp(scores).sum()
+    classes = [normaliser_categorie(categorie) for categorie in modele.classes_]
+    confidence_by_class = dict(zip(classes, probabilities))
+    return float(confidence_by_class.get(prediction_modele, probabilities.max()))
+
+def niveau_confiance(score):
+    if score >= 0.75:
+        return "elevee"
+    if score >= 0.5:
+        return "moyenne"
+    return "faible"
+
+def expliquer_prediction_nlp(prediction_finale, prediction_modele, scores, detected, source, confiance):
+    best_category, best_score = max(scores.items(), key=lambda item: item[1])
+    best_category = normaliser_categorie(best_category)
+    mots = detected.get(best_category, [])
+    mots_resume = ", ".join(mots[:4])
+
+    if source == "mots_cles+modele" and mots_resume:
+        explication = (
+            f"La decision finale est {prediction_finale} car le texte contient "
+            f"des indices importants: {mots_resume}. Le modele TF-IDF proposait "
+            f"{prediction_modele}."
+        )
+    else:
+        explication = (
+            f"La decision finale est {prediction_finale}. Aucun mot-cle tres fort "
+            f"n'a ete detecte, donc l'API se base surtout sur la similarite TF-IDF "
+            f"apprise par le modele."
+        )
+
+    if best_score == 0:
+        conseil = "Ajoutez des mots plus precis comme plastique, verre, carton, acier, conducteur ou transparent."
+    elif confiance < 0.5:
+        conseil = "La confiance est faible: ajoutez plus de details sur la matiere, la rigidite, la transparence ou la conductivite."
+    else:
+        conseil = "La description contient assez d'indices pour justifier la categorie proposee."
+
+    return explication, conseil
+
 def predire_categorie_nlp_hybride(texte_propre, modele, vectorizer):
     X = vectorizer.transform([texte_propre])
     prediction_modele = normaliser_categorie(modele.predict(X)[0])
     prediction_mots_cles, scores = categorie_par_mots_cles(texte_propre)
+    prediction_mots_cles = normaliser_categorie(prediction_mots_cles) if prediction_mots_cles else None
     prediction_finale = prediction_mots_cles or prediction_modele
     source = "mots_cles+modele" if prediction_mots_cles else "modele"
-    return prediction_finale, prediction_modele, scores, source
+    confiance_modele = confiance_depuis_modele(modele, X, prediction_modele)
+    meilleur_score_mots = max(scores.values()) if scores else 0
+
+    if prediction_mots_cles:
+        confiance = min(0.95, 0.58 + meilleur_score_mots * 0.1)
+        if prediction_mots_cles == prediction_modele:
+            confiance = min(0.98, confiance + 0.12)
+    else:
+        confiance = confiance_modele
+
+    detected = mots_cles_detectes(texte_propre)
+    explication, conseil = expliquer_prediction_nlp(
+        prediction_finale,
+        prediction_modele,
+        scores,
+        detected,
+        source,
+        confiance,
+    )
+    return {
+        "categorie": prediction_finale,
+        "prediction_modele": prediction_modele,
+        "scores_mots_cles": scores,
+        "mots_cles_detectes": detected,
+        "source": source,
+        "confiance": round(confiance * 100, 1),
+        "niveau_confiance": niveau_confiance(confiance),
+        "explication": explication,
+        "conseil": conseil,
+    }
 
 # ── Chargement lazy des modèles ────────────────────────────
 _models = {}
@@ -287,17 +375,14 @@ def predire_prix(data: DonneesNumeriques):
 def predire_nlp(data: DonneesNLP):
     m = get_models()
     texte_propre = nettoyer_texte(data.texte)
-    pred, pred_modele, scores, source = predire_categorie_nlp_hybride(
+    analyse = predire_categorie_nlp_hybride(
         texte_propre,
         m["nlp"],
         m["tfidf"],
     )
     return {
-        "categorie": pred,
+        **analyse,
         "texte_nettoye": texte_propre,
-        "prediction_modele": pred_modele,
-        "scores_mots_cles": scores,
-        "source": source,
     }
 
 @app.get("/artifacts/{filename}")

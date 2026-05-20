@@ -78,6 +78,11 @@ def test_nlp_endpoint_returns_category_and_cleaned_text(client):
     assert response.status_code == 200
     assert data["categorie"] in EXPECTED_CATEGORIES
     assert "texte_nettoye" in data
+    assert "confiance" in data
+    assert "niveau_confiance" in data
+    assert "explication" in data
+    assert "conseil" in data
+    assert "mots_cles_detectes" in data
     assert "123" not in data["texte_nettoye"]
     assert "!" not in data["texte_nettoye"]
 

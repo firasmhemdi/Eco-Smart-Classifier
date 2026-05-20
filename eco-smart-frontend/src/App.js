@@ -784,6 +784,76 @@ const styles = `
     margin-top: 10px;
   }
 
+  .ai-explain {
+    background: #f8faf8;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    margin-top: 14px;
+    padding: 14px;
+  }
+
+  .confidence-row {
+    align-items: center;
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+  }
+
+  .confidence-label {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 750;
+    text-transform: uppercase;
+  }
+
+  .confidence-value {
+    color: var(--green-strong);
+    font-size: 18px;
+    font-weight: 850;
+  }
+
+  .explain-copy,
+  .advice-copy {
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.55;
+    margin: 12px 0 0;
+  }
+
+  .keyword-groups {
+    display: grid;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .keyword-group {
+    align-items: flex-start;
+    display: flex;
+    gap: 8px;
+  }
+
+  .keyword-group strong {
+    color: var(--ink);
+    flex: 0 0 72px;
+    font-size: 12px;
+  }
+
+  .keyword-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .keyword-chip {
+    background: #eef7f1;
+    border: 1px solid #cfe7d6;
+    border-radius: 999px;
+    color: #215d3b;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 8px;
+  }
+
   .tooltip {
     background: #ffffff;
     border: 1px solid var(--line);
@@ -1250,6 +1320,10 @@ function AssistantNLP() {
   const [texte, setTexte] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const detectedKeywordGroups = useMemo(() => {
+    if (!result?.mots_cles_detectes) return [];
+    return Object.entries(result.mots_cles_detectes).filter(([, words]) => words.length > 0);
+  }, [result]);
 
   const predictText = async () => {
     if (!texte.trim()) return;
@@ -1315,10 +1389,38 @@ function AssistantNLP() {
               <div className="category-mark">{CATEGORY_MARKS[result.categorie] || "NL"}</div>
               <p className="result-label">Categorie NLP</p>
               <h3 className="result-category">{result.categorie}</h3>
-              <p className="result-copy">Texte conserve apres nettoyage du pipeline.</p>
+              <p className="result-copy">
+                Assistant IA explicable: decision basee sur le modele TF-IDF et les mots importants.
+              </p>
               {result.source ? (
                 <div className="nlp-meta">Decision: {result.source}</div>
               ) : null}
+              <div className="ai-explain">
+                <div className="confidence-row">
+                  <span className="confidence-label">Confiance</span>
+                  <span className="confidence-value">
+                    {result.confiance}% - {result.niveau_confiance}
+                  </span>
+                </div>
+                <p className="explain-copy">{result.explication}</p>
+                {detectedKeywordGroups.length ? (
+                  <div className="keyword-groups">
+                    {detectedKeywordGroups.map(([category, words]) => (
+                      <div className="keyword-group" key={category}>
+                        <strong>{category}</strong>
+                        <div className="keyword-list">
+                          {words.map((word) => (
+                            <span className="keyword-chip" key={`${category}-${word}`}>
+                              {word}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                <p className="advice-copy">{result.conseil}</p>
+              </div>
               <div className="clean-text">{result.texte_nettoye}</div>
             </>
           ) : (

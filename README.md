@@ -1,128 +1,54 @@
-# ♻️ ECO-SMART CLASSIFIER
+# Eco-Smart Classifier
 
-Système intelligent de classification de déchets et estimation du prix de revente.
+Systeme intelligent de classification de dechets et d'estimation du prix de revente en TND.
 
-## 🎯 Description
-Pipeline ML complet allant de la donnée brute à une application web déployée, capable de classifier des déchets (Métal, Papier, Plastique, Verre) et d'estimer leur valeur de revente.
+Le projet couvre tout le workflow demande : preparation des donnees, classification, regression, clustering, NLP, pipeline multimodal, API FastAPI, interface React, Docker, tests, CI/CD, MLflow et DVC.
 
-## 📊 Résultats
+## Resultats Principaux
 
-| Module | Modèle | Performance |
-|--------|--------|-------------|
-| Classification | Random Forest | 99.93% accuracy |
-| Régression | Gradient Boosting | R²=0.74 |
-| NLP | LinearSVC + TF-IDF | 100% accuracy |
-| Multimodal | LinearSVC combiné | 100% accuracy |
-| Clustering | K-Means (k=4) | PCA 88.6% variance |
+| Module | Methode | Performance |
+| --- | --- | --- |
+| Classification numerique | Random Forest | 99.93% accuracy |
+| Regression prix | Gradient Boosting | R2 = 0.74 |
+| NLP | TF-IDF + LinearSVC | 100% accuracy |
+| Multimodal | TF-IDF + numerique + LinearSVC | 100% accuracy |
+| Clustering | K-Means, k=4 | PCA 2D, 88.6% variance |
 
-## 🏗️ Architecture
-```
-eco-smart-classifier/
-├── Eco-Smart Classifier.ipynb
-├── main.py
-├── Dockerfile
-├── eco-smart-frontend/
-├── models/
-├── PROMPTS.md
-└── README.md
-```
+## Lancer En Local Avec Docker
 
-## 🚀 Lancer le projet en 3 commandes
+Prerequis :
 
-**1. API FastAPI**
-```bash
-python -m uvicorn main:app --reload
-```
+- Docker Desktop ouvert.
+- Le projet clone en local.
 
-**2. Application React**
-```bash
-cd eco-smart-frontend && npm install && npm start
-```
+### Option Recommandee : Application Fullstack Sur Un Seul Port
 
-**3. MLflow UI**
-```bash
-mlflow ui
-```
-
-## 🌐 URLs
-
-| Service | URL |
-|---------|-----|
-| Application Web | http://localhost:3000 |
-| API FastAPI | http://localhost:8000 |
-| API Docs | http://localhost:8000/docs |
-| MLflow UI | http://localhost:5000 |
-
-## 📦 Installation
-```bash
-pip install fastapi uvicorn scikit-learn joblib mlflow pandas numpy matplotlib seaborn gensim
-cd eco-smart-frontend && npm install
-```
-
-## 🔬 Modules
-
-**Module 1 — Data Engineering**
-- Imputation : Médiane vs KNN vs IterativeImputer
-- Outliers : Capping IQR
-- Normalisation : StandardScaler
-- Encodage : One-Hot + Label Encoding
-
-**Module 2 — ML Supervisé**
-- Classification : Random Forest (99.93%)
-- Régression : Gradient Boosting (R²=0.74)
-- Tuning : GridSearchCV
-
-**Module 3 — Clustering**
-- K-Means avec k=4 (Elbow Method)
-- Visualisation PCA 2D (88.6% variance)
-
-**Module 4 — NLP**
-- Vectorisation : BoW, TF-IDF, Word2Vec, FastText
-- Classificateurs : Naive Bayes, LinearSVC, Random Forest
-
-**Module 5 — Pipeline Multimodal**
-- Fusion hstack : TF-IDF + numérique = 694 features
-- LinearSVC → 100% accuracy
-
-**Module 6 — MLOps**
-- MLflow : 5 expériences + Model Registry
-- API REST : FastAPI + uvicorn
-- Frontend : React + Recharts
-
-## 👨‍💻 Auteur
-**Firas Mhemdi** — Mastère DSIR1, ISET Sfax
-## Docker - API FastAPI
-
-Construire l'image :
+Depuis la racine du projet :
 
 ```bash
-docker build -t eco-smart-api .
+docker build -t eco-smart-fullstack .
+docker run --rm -p 8000:8000 eco-smart-fullstack
 ```
 
-Lancer le conteneur :
+Puis ouvrir :
 
-```bash
-docker run --rm -p 8000:8000 eco-smart-api
-```
-
-Verifier l'API :
-
-- API : http://localhost:8000
+- Application web : http://localhost:8000
+- API FastAPI : http://localhost:8000/health
 - Documentation Swagger : http://localhost:8000/docs
 
-## Docker Compose - Backend + Frontend
+Cette option construit le frontend React, le sert avec FastAPI et charge les modeles depuis `models/`.
 
-Construire les deux images :
-
-```bash
-docker compose build
-```
-
-Lancer toute l'application :
+### Option Alternative : Docker Compose
 
 ```bash
-docker compose up -d
+docker compose up --build
 ```
+
+Puis ouvrir :
+
+- Frontend React : http://localhost:3000
+- API FastAPI : http://localhost:8000
+- Documentation Swagger : http://localhost:8000/docs
 
 Arreter les conteneurs :
 
@@ -130,11 +56,143 @@ Arreter les conteneurs :
 docker compose down
 ```
 
-URLs :
+## Lancer Sans Docker
 
-- Frontend React : http://localhost:3000
-- API FastAPI : http://localhost:8000
-- API Docs : http://localhost:8000/docs
+### Backend FastAPI
+
+```bash
+pip install -r requirements.txt
+python -m uvicorn main:app --reload
+```
+
+API :
+
+- http://localhost:8000
+- http://localhost:8000/docs
+
+### Frontend React
+
+Dans un autre terminal :
+
+```bash
+cd eco-smart-frontend
+npm install
+npm start
+```
+
+Sous Windows PowerShell, si `npm` est bloque par la policy, utiliser :
+
+```bash
+npm.cmd install
+npm.cmd start
+```
+
+Frontend :
+
+- http://localhost:3000
+
+## Fonctionnalites De L'Application
+
+L'application web contient trois onglets :
+
+1. **Dashboard Data**
+   - statistiques du dataset ;
+   - distribution des categories ;
+   - performances des modeles ;
+   - visualisation PCA des clusters ;
+   - methode du coude pour justifier `k=4`.
+
+2. **Prediction Manuelle**
+   - curseurs pour `Poids`, `Volume`, `Conductivite`, `Opacite`, `Rigidite` ;
+   - prediction de la categorie ;
+   - estimation du prix en `TND`.
+
+3. **Assistant NLP**
+   - saisie d'une description textuelle ;
+   - nettoyage du texte ;
+   - prediction de la categorie par modele NLP ;
+   - renfort par mots-cles metier.
+
+## Endpoints API
+
+| Endpoint | Methode | Role |
+| --- | --- | --- |
+| `/health` | GET | Verifier que l'API fonctionne |
+| `/data/stats` | GET | Recuperer les statistiques du dashboard |
+| `/predict/classification` | POST | Predire une categorie depuis les variables numeriques |
+| `/predict/regression` | POST | Estimer le prix en TND |
+| `/predict/nlp` | POST | Predire une categorie depuis un texte |
+| `/artifacts/clusters_pca.png` | GET | Afficher les clusters PCA |
+| `/artifacts/elbow_method.png` | GET | Afficher la methode du coude |
+
+Exemple NLP :
+
+```bash
+curl -X POST http://localhost:8000/predict/nlp ^
+  -H "Content-Type: application/json" ^
+  -d "{\"texte\":\"carton papier leger opaque\"}"
+```
+
+Exemple prediction numerique :
+
+```bash
+curl -X POST http://localhost:8000/predict/regression ^
+  -H "Content-Type: application/json" ^
+  -d "{\"poids\":50,\"volume\":100,\"conductivite\":0.1,\"opacite\":1,\"rigidite\":5}"
+```
+
+## Modules Du Projet
+
+### Module 1 - Data Engineering
+
+- exploration du dataset ;
+- gestion des valeurs manquantes ;
+- comparaison mediane, KNNImputer et IterativeImputer ;
+- traitement des outliers par capping IQR ;
+- standardisation avec StandardScaler ;
+- encodage des variables categoriques.
+
+### Module 2 - Machine Learning Supervise
+
+- classification de `Categorie` ;
+- regression du `Prix_Revente` ;
+- comparaison de plusieurs modeles ;
+- tuning avec GridSearchCV ;
+- matrice de confusion et importance des features ;
+- sauvegarde des modeles en `.pkl`.
+
+### Module 3 - Clustering
+
+- K-Means sans utiliser la cible ;
+- choix de `k=4` avec la methode du coude ;
+- visualisation PCA 2D ;
+- affichage des artefacts dans le dashboard.
+
+### Module 4 - NLP
+
+- nettoyage de `Rapport_Collecte` ;
+- suppression des stopwords ;
+- comparaison BoW, TF-IDF, Word2Vec et FastText ;
+- choix final : TF-IDF + LinearSVC ;
+- endpoint `/predict/nlp` integre dans l'assistant web.
+
+### Module 5 - Pipeline Multimodal
+
+- fusion sparse avec `hstack` ;
+- combinaison TF-IDF + variables numeriques standardisees ;
+- modele final LinearSVC ;
+- comparaison texte seul, numerique seul et combine.
+
+### Module 6 - MLOps
+
+- MLflow : 5 experiences et Model Registry ;
+- DVC : suivi documente du dataset et des modeles ;
+- FastAPI + Docker ;
+- tests pytest ;
+- CI GitHub Actions ;
+- deploiement Render via `render.yaml`.
+
+Note : pour simplifier le deploiement de ce projet d'etude, le dataset et les modeles sont aussi presents directement dans le depot Git. DVC reste configure pour documenter et verifier les artefacts.
 
 ## Tests
 
@@ -144,70 +202,36 @@ Installer les dependances de test :
 pip install -r requirements-dev.txt
 ```
 
-Lancer les tests avec coverage :
+Lancer les tests :
 
 ```bash
 pytest
 ```
 
-Le plan des tests a implementer est dans `TEST_PLAN.md`.
-
-Execution verifiee dans Docker :
+Lancer les tests frontend :
 
 ```bash
-docker run --rm -v "${PWD}:/app" -w /app eco-smart-api sh -c "pip install --no-cache-dir -r requirements-dev.txt && pytest"
+cd eco-smart-frontend
+npm.cmd test -- --watchAll=false
 ```
-
-Resultat actuel : 20 tests passes, coverage `main.py` 100%.
-
-## CI/CD GitHub Actions
-
-Le workflow CI est dans `.github/workflows/ci.yml`.
-
-Il execute :
-
-- verification des fichiers obligatoires ;
-- build de l'image backend `eco-smart-api` ;
-- tests `pytest` avec coverage ;
-- build backend + frontend avec Docker Compose ;
-- lancement du stack complet ;
-- smoke tests API et frontend ;
-- upload du rapport `htmlcov`.
-
-Important : pour simplifier le deploiement de ce projet d'etude, le dataset et les modeles sont aussi presents directement dans le depot Git. DVC reste configure pour documenter et verifier les artefacts.
-
-## DVC
-
-Le projet utilise DVC pour documenter et verifier les artefacts :
-
-- `dataset_ProjetML_2026.csv`
-- `models/`
-
-Verifier le pipeline :
-
-```bash
-dvc status
-dvc repro
-dvc metrics show
-```
-
-Pousser les artefacts vers le remote DVC :
-
-```bash
-dvc push
-```
-
-Note : les artefacts sont aussi suivis directement par Git pour faciliter GitHub Actions et le deploiement simple.
 
 ## Deploiement
 
 Le Dockerfile principal construit une image fullstack :
 
-- React compile et servi par FastAPI ;
+- build React ;
 - API FastAPI ;
 - modeles ML inclus ;
-- port compatible avec les plateformes cloud via la variable `PORT`.
+- images PCA/coude incluses ;
+- port compatible avec Render via la variable `PORT`.
 
-Le fichier `render.yaml` permet un deploiement Render gratuit avec Docker et health check `/health`.
+Render peut construire directement depuis :
 
-Guide detaille : `DEPLOYMENT.md`.
+```text
+Dockerfile
+render.yaml
+```
+
+## Auteur
+
+Firas Mhemdi - Mastere DSIR1, ISET Sfax

@@ -110,6 +110,25 @@ STRONG_NLP_KEYWORDS = {
     "Verre": {"verre", "vitrage", "bocal"},
 }
 
+SEMANTIC_PROTOTYPES = {
+    "MÃ©tal": [
+        "metal acier aluminium cuivre conducteur electrique conductivite metallique",
+        "canette boite ferraille aimant rouille brillant materiau metallique",
+    ],
+    "Papier": [
+        "papier carton feuille journal magazine opaque souple leger recyclable",
+        "fibres carton emballage papier non conducteur faible rigidite",
+    ],
+    "Plastique": [
+        "plastique bouteille bidon sachet emballage pet pvc polyethylene leger",
+        "materiau plastique semi rigide recyclable alimentaire non conducteur",
+    ],
+    "Verre": [
+        "verre bouteille bocal vitrage transparent fragile rigide dense casse",
+        "contenants verre transparence forte rigidite bris non conducteur",
+    ],
+}
+
 def normaliser_texte(texte):
     texte = texte.lower()
     texte = unicodedata.normalize("NFKD", texte)
@@ -200,6 +219,35 @@ def mots_cles_detectes(texte_propre):
         if mots & tokens
     }
 
+def similarite_cosinus_sparse(a, b):
+    denominateur = np.sqrt(a.multiply(a).sum()) * np.sqrt(b.multiply(b).sum())
+    if denominateur == 0:
+        return 0.0
+    return float(a.multiply(b).sum() / denominateur)
+
+def analyse_semantique(texte_propre, vectorizer):
+    texte_vectorise = vectorizer.transform([texte_propre])
+    scores = {}
+
+    for categorie, prototypes in SEMANTIC_PROTOTYPES.items():
+        prototypes_propres = [nettoyer_texte(prototype) for prototype in prototypes]
+        prototype_vectors = vectorizer.transform(prototypes_propres)
+        categorie_scores = [
+            similarite_cosinus_sparse(texte_vectorise, prototype_vectors[index])
+            for index in range(prototype_vectors.shape[0])
+        ]
+        scores[normaliser_categorie(categorie)] = round(max(categorie_scores), 4)
+
+    categorie = max(scores, key=scores.get)
+    if scores[categorie] == 0:
+        categorie = None
+    return {
+        "categorie": categorie,
+        "score": scores[categorie] if categorie else 0.0,
+        "scores": scores,
+        "methode": "prototypes_semantiques_tfidf",
+    }
+
 def confiance_depuis_modele(modele, X, prediction_modele):
     if not hasattr(modele, "decision_function"):
         return 0.5
@@ -222,11 +270,13 @@ def niveau_confiance(score):
         return "moyenne"
     return "faible"
 
-def expliquer_prediction_nlp(prediction_finale, prediction_modele, scores, detected, source, confiance):
+def expliquer_prediction_nlp(prediction_finale, prediction_modele, scores, detected, source, confiance, semantique):
     best_category, best_score = max(scores.items(), key=lambda item: item[1])
     best_category = normaliser_categorie(best_category)
     mots = detected.get(best_category, [])
     mots_resume = ", ".join(mots[:4])
+    sem_category = semantique["categorie"]
+    sem_score = round(semantique["score"] * 100, 1)
 
     if source == "mots_cles+modele" and mots_resume:
         explication = (
@@ -234,11 +284,17 @@ def expliquer_prediction_nlp(prediction_finale, prediction_modele, scores, detec
             f"des indices importants: {mots_resume}. Le modele TF-IDF proposait "
             f"{prediction_modele}."
         )
+    elif source == "semantique+modele":
+        explication = (
+            f"La decision finale est {prediction_finale} car la description est "
+            f"semantiquement proche du profil {sem_category} ({sem_score}% de similarite). "
+            f"Le modele TF-IDF proposait {prediction_modele}."
+        )
     else:
         explication = (
             f"La decision finale est {prediction_finale}. Aucun mot-cle tres fort "
-            f"n'a ete detecte, donc l'API se base surtout sur la similarite TF-IDF "
-            f"apprise par le modele."
+            f"n'a ete detecte, donc l'API se base surtout sur le modele TF-IDF "
+            f"et la similarite semantique avec les profils de categories."
         )
 
     if best_score == 0:
@@ -255,8 +311,15 @@ def predire_categorie_nlp_hybride(texte_propre, modele, vectorizer):
     prediction_modele = normaliser_categorie(modele.predict(X)[0])
     prediction_mots_cles, scores = categorie_par_mots_cles(texte_propre)
     prediction_mots_cles = normaliser_categorie(prediction_mots_cles) if prediction_mots_cles else None
-    prediction_finale = prediction_mots_cles or prediction_modele
-    source = "mots_cles+modele" if prediction_mots_cles else "modele"
+    semantique = analyse_semantique(texte_propre, vectorizer)
+    prediction_semantique = semantique["categorie"] if semantique["score"] >= 0.08 else None
+    prediction_finale = prediction_mots_cles or prediction_semantique or prediction_modele
+    if prediction_mots_cles:
+        source = "mots_cles+modele"
+    elif prediction_semantique:
+        source = "semantique+modele"
+    else:
+        source = "modele"
     confiance_modele = confiance_depuis_modele(modele, X, prediction_modele)
     meilleur_score_mots = max(scores.values()) if scores else 0
 
@@ -264,6 +327,10 @@ def predire_categorie_nlp_hybride(texte_propre, modele, vectorizer):
         confiance = min(0.95, 0.58 + meilleur_score_mots * 0.1)
         if prediction_mots_cles == prediction_modele:
             confiance = min(0.98, confiance + 0.12)
+    elif prediction_semantique:
+        confiance = min(0.92, max(confiance_modele, 0.55 + semantique["score"]))
+        if prediction_semantique == prediction_modele:
+            confiance = min(0.96, confiance + 0.08)
     else:
         confiance = confiance_modele
 
@@ -275,10 +342,13 @@ def predire_categorie_nlp_hybride(texte_propre, modele, vectorizer):
         detected,
         source,
         confiance,
+        semantique,
     )
     return {
         "categorie": prediction_finale,
         "prediction_modele": prediction_modele,
+        "prediction_semantique": prediction_semantique,
+        "analyse_semantique": semantique,
         "scores_mots_cles": scores,
         "mots_cles_detectes": detected,
         "source": source,

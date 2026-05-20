@@ -83,6 +83,9 @@ def test_nlp_endpoint_returns_category_and_cleaned_text(client):
     assert "explication" in data
     assert "conseil" in data
     assert "mots_cles_detectes" in data
+    assert "analyse_semantique" in data
+    assert "scores" in data["analyse_semantique"]
+    assert data["analyse_semantique"]["methode"] == "prototypes_semantiques_tfidf"
     assert "123" not in data["texte_nettoye"]
     assert "!" not in data["texte_nettoye"]
 

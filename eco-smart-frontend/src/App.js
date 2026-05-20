@@ -1324,6 +1324,12 @@ function AssistantNLP() {
     if (!result?.mots_cles_detectes) return [];
     return Object.entries(result.mots_cles_detectes).filter(([, words]) => words.length > 0);
   }, [result]);
+  const semanticScores = useMemo(() => {
+    if (!result?.analyse_semantique?.scores) return [];
+    return Object.entries(result.analyse_semantique.scores)
+      .map(([category, score]) => ({ category, score: Math.round(score * 1000) / 10 }))
+      .sort((a, b) => b.score - a.score);
+  }, [result]);
 
   const predictText = async () => {
     if (!texte.trim()) return;
@@ -1395,6 +1401,12 @@ function AssistantNLP() {
               {result.source ? (
                 <div className="nlp-meta">Decision: {result.source}</div>
               ) : null}
+              {result.analyse_semantique?.categorie ? (
+                <div className="nlp-meta">
+                  Profil semantique: {result.analyse_semantique.categorie} (
+                  {Math.round(result.analyse_semantique.score * 1000) / 10}%)
+                </div>
+              ) : null}
               <div className="ai-explain">
                 <div className="confidence-row">
                   <span className="confidence-label">Confiance</span>
@@ -1414,6 +1426,18 @@ function AssistantNLP() {
                               {word}
                             </span>
                           ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {semanticScores.length ? (
+                  <div className="keyword-groups">
+                    {semanticScores.map(({ category, score }) => (
+                      <div className="keyword-group" key={`semantic-${category}`}>
+                        <strong>{category}</strong>
+                        <div className="keyword-list">
+                          <span className="keyword-chip">{score}% similarite</span>
                         </div>
                       </div>
                     ))}
